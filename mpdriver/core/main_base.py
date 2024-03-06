@@ -17,15 +17,6 @@ _T = TypeVar("_T")
 _P = ParamSpec("_P")
 PROGRESS_DESC_PREFIX = "{:<16}"
 
-class SharedDict(TypedDict):
-    tqdm_pos_stock: list[int]
-    sigint_event: Event
-
-class MultiProcessDict(TypedDict):
-    manager: Manager
-    shared: SharedDict
-    pool: ProcessPoolExecutor
-
 class Verbose:
     LEVEL: dict[Literal["info", "warning", "error", "reset", ""], str] = {
         ""        : "",
@@ -55,6 +46,16 @@ class Verbose:
     def warning(self, *args, **kwargs): return self.message('warning'*args, **kwargs)
     def error(self, *args, **kwargs): return self.message('error', *args, **kwargs)
 
+
+class SharedDict(TypedDict): # For All Process
+    tqdm_pos_stock: list[int]
+    sigint_event: Event
+
+class MultiProcessDict(TypedDict): # For Main Process
+    manager: Manager
+    shared: SharedDict
+    pool: ProcessPoolExecutor
+
 class AppBase:
 
     tqdm_position: int | None = None
@@ -64,7 +65,7 @@ class AppBase:
 
 _AB = TypeVar("_AB", bound=AppBase)
 
-class AppWorkerThread(Thread, Generic[_AB]):
+class AppWorkerThread(Thread, Generic[_AB]): # For Sub Process
 
     app_process: _AB
     sigint_event: Event
@@ -74,10 +75,13 @@ class AppWorkerThread(Thread, Generic[_AB]):
     def get_thread(cls) -> Self:
         return main_thread()
 
-class AppExecutor(Generic[_AB]):
+class AppExecutor(Generic[_AB]): # For Main Process
 
     app_type: type[_AB]
-    "you must override this variable, nor raise NameError"
+
+    def __init_subclass__(cls) -> None:
+        if not hasattr(cls, "app_type"): raise NameError("if create 'AppExecutor' child, you must override 'app_type' variable.")
+        return super().__init_subclass__()
     
     @staticmethod
     def _sigint_handler(thread: AppWorkerThread[_AB]):

@@ -59,16 +59,6 @@ class AppBase:
 
     tqdm_position: int | None = None
 
-    def __init__(
-        self,
-        holistic_options: MediaPipeHolisticOptions | None = None
-        ):
-
-        self.mp = MP(
-            detect_targets = ["left_hand", "right_hand", "pose"],
-            holistic_options = holistic_options
-        )
-    
     def run(self, *args, **kwargs):
         raise NotImplementedError
 

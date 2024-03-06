@@ -13,7 +13,7 @@ from tqdm import tqdm
 from mpdriver.core.mp import MediaPipeHolisticOptions
 
 from ...utils import is_video, is_image, VideoCapture, VideoWriter, cap_to_frame_iter, frame_iter_to_video_writer, video_or_imgdir_pathes
-from ...core.mp import MediaPipeHolisticOptions, DEFAULT_DETECT_TARGETS
+from ...core.mp import MP, MediaPipeHolisticOptions, DEFAULT_DETECT_TARGETS
 from ...core.main_base import AppBase, AppExecutor, PROGRESS_DESC_PREFIX
 from ...core.progress import TqdmKwargs
 from ...core.config import load_config
@@ -23,8 +23,12 @@ from .args import RunArgs
 class RunApp(AppBase):
 
     def __init__(self):
-        mpho: MediaPipeHolisticOptions = load_config('mediapipe')
-        super().__init__(mpho)
+        holistic_options: MediaPipeHolisticOptions = load_config('mediapipe')
+
+        self.mp = MP(
+            detect_targets = ["left_hand", "right_hand", "pose"],
+            holistic_options = holistic_options
+        )
 
     def run(
         self,

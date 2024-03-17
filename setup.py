@@ -8,7 +8,7 @@ setup(
     author_email = "kimlab.nittc@gmail.com",
     packages = find_packages(),
     install_requires = [
-        "typing_extension",
+        "typing_extensions",
         "opencv-python",
         "ffmpeg-python",
         "mediapipe",

@@ -10,8 +10,7 @@ from multiprocessing.synchronize import RLock                    # static analys
 from multiprocessing import Manager as _Manager, RLock as _RLock # actual import
 from concurrent.futures import ProcessPoolExecutor, InvalidStateError, process
 
-from .mp import MP, MediaPipeHolisticOptions
-from .progress import TqdmKwargs, Tqdm
+from .progress import TqdmKwargs, Tqdm, TqdmSingle, TqdmHost, TqdmClient
 
 _T = TypeVar("_T")
 _P = ParamSpec("_P")
@@ -48,17 +47,16 @@ class Verbose:
 
 
 class SharedDict(TypedDict): # For All Process
-    tqdm_pos_stock: list[int]
+    tqdm_clients: list[TqdmClient]
     sigint_event: Event
 
 class MultiProcessDict(TypedDict): # For Main Process
     manager: Manager
+    tqdm_host: TqdmHost
     shared: SharedDict
     pool: ProcessPoolExecutor
 
 class AppBase:
-
-    tqdm_position: int | None = None
 
     def run(self, *args, **kwargs):
         raise NotImplementedError
@@ -68,6 +66,7 @@ _AB = TypeVar("_AB", bound=AppBase)
 class AppWorkerThread(Thread, Generic[_AB]): # For Sub Process
 
     app_process: _AB
+    tqdm_handler: TqdmSingle | TqdmClient
     sigint_event: Event
     rlock: RLock
 
@@ -113,57 +112,54 @@ class AppExecutor(Generic[_AB]): # For Main Process
         self.multi_process_dict["shared"]["sigint_event"].set()
     
     @classmethod
-    def _signle_init(cls, tqdm_lock: RLock, io_rock: RLock):
-
-        Tqdm.set_lock(tqdm_lock)
+    def _signle_init(cls, io_rock: RLock):
 
         thread = AppWorkerThread[_AB].get_thread()
         thread.app_process = cls.app_type()
-        thread.app_process.tqdm_position = 0
         thread.rlock = io_rock
+        thread.tqdm_handler = TqdmSingle
     
     @classmethod
-    def _multi_init(cls, tqdm_lock: RLock, io_lock: RLock, shared: SharedDict):
+    def _multi_init(cls, io_lock: RLock, shared: SharedDict):
 
         warnings.filterwarnings("ignore", category=UserWarning)
 
-        Tqdm.set_lock(tqdm_lock)
-
         thread = AppWorkerThread[_AB].get_thread()
         thread.app_process = cls.app_type()
-        thread.app_process.tqdm_position = shared["tqdm_pos_stock"].pop()
         thread.sigint_event = shared["sigint_event"]
         thread.rlock = io_lock
+        thread.tqdm_handler = shared["tqdm_clients"].pop()
         signal.signal(signal.SIGINT, cls._sigint_handler(thread))
 
     def __init__(self, cpu: int | None):
 
-        self.tqdm_lock = _RLock()
         self.io_lock = _RLock()
-        Tqdm.set_lock(self.tqdm_lock)
 
         if cpu is None:
 
             self.tqdm_pos = 1
-            self.multi_process_dict = self._signle_init(self.tqdm_lock, self.io_lock)
+            self.multi_process_dict = self._signle_init(self.io_lock)
             self._map_func = map
+            self._tqdm_func = TqdmSingle.tqdm
 
         else:
 
             self.tqdm_pos = cpu
             self.multi_process_dict = MultiProcessDict({
                 "manager": (manager := _Manager()),
+                "tqdm_host": (tqdm_host := TqdmHost(manager)),
                 "shared": (shared := manager.dict({
-                    "tqdm_pos_stock": manager.list(reversed(range(cpu))),
-                    "sigint_event":  manager.Event()
+                    "tqdm_clients": manager.list([tqdm_host.client() for _ in range(cpu)]),
+                    "sigint_event": manager.Event()
                 })),
                 "pool": (pool := ProcessPoolExecutor(
                     max_workers = cpu,
                     initializer = self._multi_init,
-                    initargs = (self.tqdm_lock, self.io_lock, shared)
+                    initargs = (self.io_lock, shared)
                 ))
             })
             self._map_func = pool.map
+            self._tqdm_func = tqdm_host.tqdm
 
     @staticmethod
     def _map_job(args_kwargs: tuple[Iterable[Any], Mapping[str, Any]]) -> Any:
@@ -177,29 +173,31 @@ class AppExecutor(Generic[_AB]): # For Main Process
         self,
         args_kwargs_iter: Iterable[tuple[Iterable[Any], Mapping[str, Any]]],
         tqdm_kwargs: TqdmKwargs = {}
-        ):
+        ) -> list[Any]:
 
         (sigint_manager := Thread(target=self._sigint_manager)).start()
 
         executor = self._map_func(self._map_job, args_kwargs_iter)
 
-        progress = Tqdm(
+        progress = self._tqdm_func(
             executor,
             **({
                 "total": len(args_kwargs_iter) if isinstance(args_kwargs_iter, Sized) else None,
                 "desc": f'\033[46m{PROGRESS_DESC_PREFIX.format("Processing...")}\033[0m',
-                "bar_format": "{desc}: {percentage:6.2f}%{l_bar}{bar}{r_bar}\033[0J",
+                "bar_format": "{desc}: {percentage:6.2f}%|{bar}{r_bar}\033[0J",
                 "colour": "cyan",
                 "position": self.tqdm_pos,
                 "mininterval": 1/15,
-                "maxinterval": 1/10
+                "maxinterval": 1/10,
+                "priority": 1
             } | tqdm_kwargs)
         )
 
         exception: Exception | None = None
+        result: list[Any] | None = None
 
         try:
-            results = list(progress)
+            result = list(progress)
         
         except KeyboardInterrupt:
             progress.colour = "yellow"
@@ -219,10 +217,10 @@ class AppExecutor(Generic[_AB]): # For Main Process
             self._sigint_deleter()
             sigint_manager.join()
 
-            progress.pos = 0
-            progress.update(0)
             progress.close()
 
             if exception is not None:
                 print(file=sys.stderr)
                 raise exception
+
+            return result

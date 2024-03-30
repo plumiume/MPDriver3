@@ -8,13 +8,12 @@ from multiprocessing.synchronize import RLock
 
 import numpy as np
 import cv2
-from tqdm import tqdm
 
 from mpdriver.core.mp import MediaPipeHolisticOptions
 
-from ...utils import is_video, is_image, VideoCapture, VideoWriter, cap_to_frame_iter, frame_iter_to_video_writer, video_or_imgdir_pathes
-from ...core.mp import MP, MediaPipeHolisticOptions, DEFAULT_DETECT_TARGETS
-from ...core.main_base import AppBase, AppExecutor, PROGRESS_DESC_PREFIX
+from ...utils import is_video, is_image, VideoCapture, VideoWriter, cap_to_frame_iter, video_or_imgdir_pathes
+from ...core.mp import MP, MediaPipeHolisticOptions
+from ...core.main_base import AppBase, AppWorkerThread, AppExecutor, PROGRESS_DESC_PREFIX
 from ...core.progress import TqdmKwargs
 from ...core.config import load_config
 
@@ -45,6 +44,8 @@ class RunApp(AppBase):
         str_src = src.as_posix()
         imshow_winname = str(id(self))
         stem_ext = None if annotated is None else annotated.name
+
+        tqdm_handler = AppWorkerThread.get_thread().tqdm_handler
 
         # if is_video(src):
         if src.is_file():
@@ -107,19 +108,21 @@ class RunApp(AppBase):
         # MPD -> np.float
         job = (self.mp.flatten(self.mp.normalize(mpd)) for mpd in job) # 3次元のフレームを１列に並べる
 
-        job = tqdm(job, **({
-            "total": total, "desc": str_src, "position": self.tqdm_position,
-            "bar_format": f"{{desc:{70 if src_str_len is None else src_str_len}}}{{percentage:6.2f}}%|{{bar}}|{{n:4d}}/{{total:4d}}"
+        progress = tqdm_handler.tqdm(job, **({
+            "total": total, "desc": str_src,
+            "bar_format": f"{{desc:{70 if src_str_len is None else src_str_len}}} {{percentage:6.2f}}%|{{bar}}|{{n:4d}}/{{total:4d}}{{postfix}}",
+            "priority": 0,
         } | tqdm_kwds)) # プログレスバー
 
         if landmarks is None:
-            for _ in job: pass # 実行
+            for _ in progress: pass # 実行
+            del progress
             return
 
         if landmarks.suffix == ".csv": # CSVで出力
 
-            if not bool(list_job := list(job)):
-                tqdm.write(f'skip at {src} because it isn\'t detected from src')
+            if not bool(list_job := list(progress)):
+                tqdm_handler.write(f'skip at {src} because it isn\'t detected from src')
                 return
             matrix = np.stack(list_job)
 
@@ -129,6 +132,9 @@ class RunApp(AppBase):
             np.savetxt(landmarks, matrix, delimiter=",")
             if rlock is not None:
                 rlock.release()
+
+        del job
+        return
 
 class RunExecutor(AppExecutor[RunApp]): # 子プロセス上の実行クラス
     app_type = RunApp # AppExecutor で使用するので，必ず app_type を設定
@@ -203,10 +209,11 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 ns.annotated[1]["fps"]
             ), {})
 
-    args_kwargs_list = list(tqdm(
+    args_kwargs_list = list(executor._tqdm_func(
         args_kwargs_iter(),
         desc = f'\033[46m{PROGRESS_DESC_PREFIX.format("Searching...")}\033[0m',
-        position = executor.tqdm_pos
+        position = executor.tqdm_pos,
+        priority=1
     )) # ファイルを探索
 
     # プログレスバーに表示する入力ファイルのパスの最大文字長を取得 -> 0埋め用

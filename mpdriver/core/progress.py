@@ -156,6 +156,7 @@ class TqdmProcess(Process):
         self,
         to_host_q: "Queue[TqdmRequest]",
         to_client_qs: dict[TqdmHostID | TqdmClientID, "Queue[TqdmResponse]"],
+        interval: float = 1/5
         ) -> None:
 
         super().__init__()
@@ -165,6 +166,7 @@ class TqdmProcess(Process):
         self._loop_pipe: deque[TqdmRequest] = deque()
         self._loop_lock: Lock = _Lock()
         self._stop_secondary_loop: bool = False
+        self._interval: float = interval
         self._position: int = 0
 
         self.to_host_q = to_host_q
@@ -232,7 +234,7 @@ class TqdmProcess(Process):
             self._stop_secondary_loop = True
             return
 
-    def secondary_execute(self, interval: float = 1/5):
+    def secondary_execute(self):
 
         created_progs = list[self._OrderedProgsItem]()
         next_progs = deque[self._OrderedProgsItem]()
@@ -305,7 +307,7 @@ class TqdmProcess(Process):
 
                 if self._stop_secondary_loop: break
 
-                time.sleep(interval)
+                time.sleep(self._interval)
 
         except BaseException as e:
             traceback.print_exc()
@@ -337,7 +339,7 @@ class TqdmHost:
         to_host_q: "Queue[TqdmRequest]"
         to_client_qs: dict[TqdmHostID | TqdmClientID, "Queue[TqdmResponse]"]
 
-    def __init__(self, sync_manager: SyncManager | None = None):
+    def __init__(self, sync_manager: SyncManager | None = None, tqdm_interval: float = 1/5):
 
         if parent_process() is not None: return
 
@@ -481,9 +483,6 @@ class TqdmProxy(Generic[_T]):
     def __getattr__(self, name: str):
         return self._call("_getattr", (name,))
 
-    def write(self, s: str, file: TextIO | None, end: str = "\n"):
-        self._call("write", (s, file, end))
-
     def __bool__(self):
         if self.total is not None:
             return bool(self.total)
@@ -529,6 +528,9 @@ class TqdmProxy(Generic[_T]):
             yield item
             self.update()
 
+    def write(self, s: str, file: TextIO | None, end: str = "\n"):
+        self._call("write", (s, file, end))
+
     def update(self, n: int = 1):
         self._call("update", (n,))
 
@@ -569,7 +571,7 @@ class TqdmProxy(Generic[_T]):
 
     @property
     def colour(self) -> str | None:
-        return self._call("_getattr", ("colour",))
+        return self._call("_getattr", args=("colour",))
     @colour.setter
     def colour(self, value: str | None):
         self._call("_setattr", ("colour", value))

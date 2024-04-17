@@ -36,6 +36,7 @@ class RunApp(AppBase):
         landmarks: Path | None = None,
         show_annotated: bool = False,
         fps: float = 30,
+        normalize_clip: bool = True,
         tqdm_kwds: TqdmKwargs = {},
         rlock: RLock | None = None,
         src_str_len: int | None = None
@@ -52,6 +53,7 @@ class RunApp(AppBase):
 
             cap = VideoCapture(str_src)
             total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            # TODO add AV1 support
             # fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
             fourcc = VideoWriter.fourcc(*"mp4v")
             fps = float(cap.get(cv2.CAP_PROP_FPS))
@@ -70,6 +72,8 @@ class RunApp(AppBase):
                 return
             size = (f0.shape[1], f0.shape[0])
             frame_iter = chain((f0,), img_iter)
+
+        total_str_len = max(4, len(str(len)))
 
         # np.Mat -> np.Mat, MPD (=MediaPipeDict)
         job = ((f, self.mp.detect(f)) for f in frame_iter) # 姿勢推定
@@ -92,7 +96,7 @@ class RunApp(AppBase):
                 # MPD, np.Mat -> MPD
                 job = (
                     (mpd, cv2.imwrite(
-                        (annotated.parent / annotated.stem / f"{{:0{len(str(total))}}}{{}}".format(idx, annotated.suffix)),
+                        (annotated.parent / annotated.stem / f"{{:0{total_str_len}}}{{}}".format(idx, annotated.suffix)),
                         ann
                     ))[0]
                     for idx, (mpd, ann) in enumerate(job)
@@ -106,11 +110,12 @@ class RunApp(AppBase):
             job = (mpd for f, mpd in job) # イテレータの整形
 
         # MPD -> np.float
-        job = (self.mp.flatten(self.mp.normalize(mpd)) for mpd in job) # 3次元のフレームを１列に並べる
+        job = (self.mp.flatten(self.mp.normalize(mpd, clip=normalize_clip)) for mpd in job) # 3次元のフレームを１列に並べる
 
+        src_str_len = 70 if src_str_len is None else src_str_len
         progress = tqdm_handler.tqdm(job, **({
             "total": total, "desc": str_src,
-            "bar_format": f"{{desc:{70 if src_str_len is None else src_str_len}}} {{percentage:6.2f}}%|{{bar}}|{{n:4d}}/{{total:4d}}{{postfix}}",
+            "bar_format": f"{{desc:{70 if src_str_len is None else src_str_len}}} {{percentage:6.2f}}%|{{bar}}|{{n:{total_str_len}d}}/{{total:{total_str_len}d}}{{postfix}}",
             "priority": 0,
         } | tqdm_kwds)) # プログレスバー
 
@@ -148,7 +153,7 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
             ext = ext[1:]
         mimetypes.add_type(f'video/{ext}', f'.{ext}')
 
-    def args_kwargs_iter() -> Iterator[tuple[tuple[Path, Path | None, Path | None, bool, float], dict]]:
+    def args_kwargs_iter() -> Iterator[tuple[tuple[Path, Path | None, Path | None, bool, float, bool], dict]]:
 
         if is_video(ns.src): # src が単一ファイル
 
@@ -175,7 +180,8 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 annotated,
                 landmarks,
                 ns.annotated[1]["show"],
-                ns.annotated[1]["fps"]
+                ns.annotated[1]["fps"],
+                ns.landmarks[1]["clip"]
             ), {})
             return
 
@@ -206,13 +212,13 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 annotated,
                 landmarks,
                 ns.annotated[1]["show"],
-                ns.annotated[1]["fps"]
+                ns.annotated[1]["fps"],
+                ns.landmarks[1]["clip"]
             ), {})
 
     args_kwargs_list = list(executor._tqdm_func(
         args_kwargs_iter(),
         desc = f'\033[46m{PROGRESS_DESC_PREFIX.format("Searching...")}\033[0m',
-        position = executor.tqdm_pos,
         priority=1
     )) # ファイルを探索
 

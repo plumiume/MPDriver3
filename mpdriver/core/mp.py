@@ -238,7 +238,8 @@ class MP:
     
     def normalize(
         self,
-        mp_dict: MediaPipeDict[NDArray[np.float_]]
+        mp_dict: MediaPipeDict[NDArray[np.float_]],
+        clip: bool = True
         ):
 
         center = (mp_dict['pose'][Pose.LEFT_SHOULDER] + mp_dict['pose'][Pose.LEFT_SHOULDER]) / 2
@@ -255,7 +256,9 @@ class MP:
                     landmark_array,
                     a_min = np.array([clip_domain["left"], clip_domain["top"], -np.inf]),
                     a_max = np.array([clip_domain["right"], clip_domain["bottom"], np.inf])
-                ) - np.array([clip_domain["left"], clip_domain["top"], 0]) # offset
+                )
+                if clip else
+                landmark_array
             ) / np.array([clip_domain["right"] - clip_domain["left"], clip_domain["bottom"] - clip_domain["top"], 1])
             for target, landmark_array in mp_dict.items() if landmark_array is not None
         })

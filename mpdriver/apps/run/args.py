@@ -43,10 +43,12 @@ class RunArgs(AppArgs):
     'アノテーション出力ディレクトリ'
     class LandmarksOptions(TypedDict):
         overwrite: bool
+        normalize: bool
+        clip: bool
     landmarks: tuple[tuple[Path | None, str], LandmarksOptions] = parser.add_argument(
         '--landmarks', '-l', action=NArgsAction, nargs='*',
-        type=((Path, None), {'overwrite': lambda x: bool(json.loads(x))}),
-        default = (default := ((None, '.csv'), {'overwrite': False})),
+        type=((Path, None), {'overwrite': lambda x: bool(json.loads(x)), 'normalize': bool, 'clip': bool}),
+        default = (default := ((None, '.csv'), {'overwrite': False, 'normalize': True, 'clip': True})),
         help=textwrap.dedent('''
             ランドマーク出力
             --landmarks dst [ext] [optkey=optvalue]
@@ -55,6 +57,8 @@ class RunArgs(AppArgs):
                     ext         ランドマーク出力の拡張子
             options:
                     overwrite   上書きする
+                    normalize   正規化する
+                    clip        値を -1 ~ 1 の範囲にする
         ''').strip()
     )
     'ランドマーク出力ディレクトリ'

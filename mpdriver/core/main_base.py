@@ -58,6 +58,9 @@ class MultiProcessDict(TypedDict): # For Main Process
 
 class AppBase:
 
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError
+
     def run(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -79,7 +82,7 @@ class AppExecutor(Generic[_AB]): # For Main Process
     app_type: type[_AB]
 
     def __init_subclass__(cls) -> None:
-        if not hasattr(cls, "app_type"): raise NameError("if create 'AppExecutor' child, you must override 'app_type' variable.")
+        if not hasattr(cls, "app_type"): raise NameError("if you want to create 'AppExecutor' child, must override 'app_type' variable.")
         return super().__init_subclass__()
     
     @staticmethod
@@ -112,39 +115,37 @@ class AppExecutor(Generic[_AB]): # For Main Process
         self.multi_process_dict["shared"]["sigint_event"].set()
     
     @classmethod
-    def _signle_init(cls, io_rock: RLock):
+    def _signle_init(cls, io_rock: RLock, appbase_args: Iterable[Any] = (), appbase_kwargs: Mapping[str, Any] = {}):
 
         thread = AppWorkerThread[_AB].get_thread()
-        thread.app_process = cls.app_type()
+        thread.app_process = cls.app_type(*appbase_args, **appbase_kwargs)
         thread.rlock = io_rock
         thread.tqdm_handler = TqdmSingle
     
     @classmethod
-    def _multi_init(cls, io_lock: RLock, shared: SharedDict):
+    def _multi_init(cls, io_lock: RLock, shared: SharedDict, appbase_args: Iterable[Any] = (), appbase_kwargs: Mapping[str, Any] = {}):
 
         warnings.filterwarnings("ignore", category=UserWarning)
 
         thread = AppWorkerThread[_AB].get_thread()
-        thread.app_process = cls.app_type()
+        thread.app_process = cls.app_type(*appbase_args, **appbase_kwargs)
         thread.sigint_event = shared["sigint_event"]
         thread.rlock = io_lock
         thread.tqdm_handler = shared["tqdm_clients"].pop()
         signal.signal(signal.SIGINT, cls._sigint_handler(thread))
 
-    def __init__(self, cpu: int | None):
+    def __init__(self, cpu: int | None = None, appbase_args: Iterable[Any] = (), appbase_kwargs: Mapping[str, Any] = {}):
 
         self.io_lock = _RLock()
 
         if cpu is None:
 
-            self.tqdm_pos = 1
             self.multi_process_dict = self._signle_init(self.io_lock)
             self._map_func = map
             self._tqdm_func = TqdmSingle.tqdm
 
         else:
 
-            self.tqdm_pos = cpu
             self.multi_process_dict = MultiProcessDict({
                 "manager": (manager := _Manager()),
                 "tqdm_host": (tqdm_host := TqdmHost(manager)),
@@ -186,7 +187,6 @@ class AppExecutor(Generic[_AB]): # For Main Process
                 "desc": f'\033[46m{PROGRESS_DESC_PREFIX.format("Processing...")}\033[0m',
                 "bar_format": "{desc}: {percentage:6.2f}%|{bar}{r_bar}\033[0J",
                 "colour": "cyan",
-                "position": self.tqdm_pos,
                 "mininterval": 1/15,
                 "maxinterval": 1/10,
                 "priority": 1

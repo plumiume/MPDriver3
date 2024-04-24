@@ -55,6 +55,8 @@ class RunArgs(AppArgs):
             requires:
                     dst         ランドマーク出力ディレクトリ
                     ext         ランドマーク出力の拡張子
+                                .csv  : CSV
+                                .npy  : Numpy.npy
             options:
                     overwrite   上書きする
                     normalize   正規化する

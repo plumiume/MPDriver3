@@ -124,19 +124,26 @@ class RunApp(AppBase):
             del progress
             return
 
+        # check that result is empty 
+        if not bool(list_job := list(progress)):
+            tqdm_handler.write(f'skip at {src} because it isn\'t detected from src')
+            return
+
+        matrix = np.stack(list_job)
+
         if landmarks.suffix == ".csv": # CSVで出力
 
-            if not bool(list_job := list(progress)):
-                tqdm_handler.write(f'skip at {src} because it isn\'t detected from src')
-                return
-            matrix = np.stack(list_job)
-
-            if rlock is not None:
-                rlock.acquire()
+            if rlock is not None: rlock.acquire()
             os.makedirs(landmarks.parent, exist_ok=True)
             np.savetxt(landmarks, matrix, delimiter=",")
-            if rlock is not None:
-                rlock.release()
+            if rlock is not None: rlock.release()
+
+        elif landmarks.suffix == ".npy": # NumPy.npy形式で出力
+
+            if rlock is not None: rlock.acquire()
+            os.makedirs(landmarks.parent, exist_ok=True)
+            np.save(landmarks, matrix)
+            if rlock is not None: rlock.release()
 
         del job
         return

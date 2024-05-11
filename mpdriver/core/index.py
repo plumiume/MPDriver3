@@ -64,4 +64,3 @@ class _IndexMeta(type):
 
 class Index(metaclass=_IndexMeta):
   "インデックスクラス"
-

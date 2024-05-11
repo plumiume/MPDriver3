@@ -47,7 +47,8 @@ class TqdmProxyKwargs(TqdmKwargs):
     @classmethod
     def to_tqdm_kwargs(cls, tqdm_proxy_kwargs: "TqdmProxyKwargs") -> TqdmKwargs:
         for k in cls.__annotations__:
-            tqdm_proxy_kwargs.pop(k, None)
+            if k not in TqdmKwargs.__annotations__:
+                tqdm_proxy_kwargs.pop(k, None)
         return tqdm_proxy_kwargs
     priority: int | float
 
@@ -113,7 +114,7 @@ class Tqdm(tqdm, Generic[_T]):
             # self.close()
 
     def display(self, msg: str | None = None, pos: int | None = None):
-        if self.cls_disable: return 
+        if self.cls_disable: return
         super().display(msg, pos)
 
     def __bool__(self):
@@ -327,7 +328,8 @@ class TqdmSingle:
     @classmethod
     def tqdm(cls, iterable: Iterable[_T], **tqdm_proxy_kwargs: Unpack[TqdmProxyKwargs]):
         tqdm_kwargs = TqdmProxyKwargs.to_tqdm_kwargs(tqdm_proxy_kwargs)
-        return Tqdm(iterable, **tqdm_kwargs)
+        total = tqdm_kwargs.get("total") or (isinstance(iterable, Sized) and len(iterable)) or None
+        return Tqdm(iterable, **(tqdm_kwargs | {"total": total}))
     @classmethod
     def write(cls, s: str, file: TextIO | None = None, end: str = "\n"):
         Tqdm.write(s, file, end)
@@ -472,11 +474,15 @@ class TqdmProxy(Generic[_T]):
 
     def __init__(self, host: TqdmHost, client: TqdmClient | None, iterable: Iterable[_T], tqdm_proxy_kwargs: TqdmProxyKwargs):
 
-        self._host = host
-        self._client = client
+        self._host: TqdmHost = host
+        self._client: TqdmClient | None = client
 
-        self.iterable = iterable
-        self.total = tqdm_proxy_kwargs.get("total") or (isinstance(iterable, Sized) and len(iterable)) or None
+        self.iterable: Iterable[_T] | reversed[_T] = iterable
+        self.total: float | int | None = (
+            total if isinstance(total := tqdm_proxy_kwargs.get("total"), int | float) else
+            len(iterable) if isinstance(iterable, Sized) else
+            None
+        )
 
         self._id: TqdmProxyID = self._call("tqdm", kwargs = tqdm_proxy_kwargs | {"total": self.total})
 
@@ -491,11 +497,11 @@ class TqdmProxy(Generic[_T]):
     def __len__(self):
         return (
             len(self.iterable) if isinstance(self.iterable, Sized) else
-            int(self.total) > 0
+            int(self.total)
         )
 
     def __reversed__(self):
-        self.iterable: reversed[_T] = reversed(self.iterable)
+        self.iterable = reversed(self.iterable)
         return self.__iter__()
 
     def __contains__(self, item: Any):
@@ -567,7 +573,6 @@ class TqdmProxy(Generic[_T]):
 
     def display(self, msg: str | None = None, pos: int | None = None):
         self._call("display", (msg, pos))
-
 
     @property
     def colour(self) -> str | None:

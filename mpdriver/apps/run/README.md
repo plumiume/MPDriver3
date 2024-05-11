@@ -6,8 +6,8 @@
 
 ### Usage
 ```
-mpdriver run src [-l | --landmarks <outdir> [<ext>] [optkey=optvalue ...]]
-                 [-a | --annotated <outdir> [<ext>] [optkey=optvalue ...]]
+mpdriver run <src> [-l | --landmarks <outdir> [<ext>] [optkey=optvalue ...]]
+                   [-a | --annotated <outdir> [<ext>] [optkey=optvalue ...]]
 ```
 
 #### landmarks option

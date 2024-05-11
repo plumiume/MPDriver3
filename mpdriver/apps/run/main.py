@@ -73,7 +73,7 @@ class RunApp(AppBase):
             size = (f0.shape[1], f0.shape[0])
             frame_iter = chain((f0,), img_iter)
 
-        total_str_len = max(4, len(str(len)))
+        total_str_len = max(4, len(str(total)))
 
         # np.Mat -> np.Mat, MPD (=MediaPipeDict)
         job = ((f, self.mp.detect(f)) for f in frame_iter) # 姿勢推定
@@ -113,6 +113,7 @@ class RunApp(AppBase):
         job = (self.mp.flatten(self.mp.normalize(mpd, clip=normalize_clip)) for mpd in job) # 3次元のフレームを１列に並べる
 
         src_str_len = 70 if src_str_len is None else src_str_len
+
         progress = tqdm_handler.tqdm(job, **({
             "total": total, "desc": str_src,
             "bar_format": f"{{desc:{70 if src_str_len is None else src_str_len}}} {{percentage:6.2f}}%|{{bar}}|{{n:{total_str_len}d}}/{{total:{total_str_len}d}}{{postfix}}",

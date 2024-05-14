@@ -18,9 +18,9 @@ class ConfigArgs(AppArgs):
     file_global: bool = parser.add_argument('--global', action=argparse._StoreTrueAction, dest='file_global')
     file_system: bool = parser.add_argument('--system', action=argparse._StoreTrueAction, dest='file_system')
     file_default: bool = parser.add_argument('--default', action=argparse._StoreTrueAction, dest='file_default')
-    key: str = parser.add_argument('key')
+    key: str = parser.add_argument('key', help="項目")
     '項目'
-    value: str | None = parser.add_argument('value', nargs=argparse.OPTIONAL, default=None)
+    value: str | None = parser.add_argument('value', nargs=argparse.OPTIONAL, default=None, help="値")
     '値'
     verbose: bool = parser.add_argument('-v', '--verbose', action=argparse._StoreTrueAction)
     yes: bool = parser.add_argument('-y', '--yes', action=argparse._StoreTrueAction)

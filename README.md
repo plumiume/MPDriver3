@@ -1,7 +1,11 @@
+### Lang
+- [JP](/rm/jp.md)
+
 ## Instllation
 
 ```bash
 python -m pip install git+ssh://git@github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
+## Install via https
 # python -m pip install git+https://github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
 ```
 
@@ -9,6 +13,7 @@ Or you can install in development mode
 
 ```bash
 git clone git@github.com:Kimura-Lab-NIT-Toyota/MPDriver3.git MPDriver3
+## Install via https
 # git clone https://github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
 cd MPDriver3
 python -m pip install -e .

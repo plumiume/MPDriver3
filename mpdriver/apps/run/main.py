@@ -3,6 +3,7 @@ from pathlib import Path
 from itertools import *
 from typing import *
 import mimetypes
+import unicodedata
 # from threading import RLock
 from multiprocessing.synchronize import RLock
 
@@ -231,7 +232,17 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
     )) # ファイルを探索
 
     # プログレスバーに表示する入力ファイルのパスの最大文字長を取得 -> 0埋め用
-    src_str_len = max((len(item[0][0].as_posix()) for item in args_kwargs_list), default=None)
+    src_str_len = max(
+        (
+            sum(
+                2 if unicodedata.east_asian_width(c) in "FWA" else 1
+                for c in item[0][0].as_posix()
+            )
+            for item in args_kwargs_list
+        ),
+        default=None
+    )
+
     for item in args_kwargs_list:
         item[1]['src_str_len'] = src_str_len
 

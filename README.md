@@ -17,17 +17,17 @@ Currently, MPDriver can be installed in the following ways:
 ### 1. install to python
 
 ```bash
-python -m pip install git+ssh://git@github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
+python -m pip install git+ssh://git@github.com/plumiume/MPDriver3.git
 ## Install via https
-# python -m pip install git+https://github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
+# python -m pip install git+https://github.com/plumiume/MPDriver3.git
 ```
 
 Or you can install in development mode
 
 ```bash
-git clone git@github.com:Kimura-Lab-NIT-Toyota/MPDriver3.git MPDriver3
+git clone git@github.com:plumiume/MPDriver3.git MPDriver3
 ## Install via https
-# git clone https://github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
+# git clone https://github.com/plumiume/MPDriver3.git
 cd MPDriver3
 python -m pip install -e .
 ```
@@ -35,13 +35,13 @@ python -m pip install -e .
 ### 2. docker install
 
 Before running the following commands,
-you must have [Docker](https://www.docker.com/ja-jp/) installed on your system.
+you must have [Docker](https://www.docker.com/) installed on your system.
 
 ```shell
-git clone git@github.com:Kimura-Lab-NIT-Toyota/MPDriver3.git MPDriver3
+git clone git@github.com:plumiume/MPDriver3.git MPDriver3
 cd MPDriver3
-docker build . -t kimura-lab-nit-toyota/mpdriver3
-docker create -it --name mpdriver3-container kimura-lab-nit-toyota/mpdriver3 bash
+docker build . -t plumiume/mpdriver3
+docker create -it --name mpdriver3-container plumiume/mpdriver3 bash
 ```
 
 ### Check Installation

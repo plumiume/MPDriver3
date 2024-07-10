@@ -1,41 +1,36 @@
-### Lang
-- [JP](/rm/jp.md)
-- [CH](/rm/ch.md)
+## 必要条件
 
-## Requirments
-
-This system requires the following:
+该系统需要以下组件：
 
 [FFmpeg](https://ffmpeg.org/download.html)
 
-## Instllation
+## 安装
 
-Currently, MPDriver can be installed in the following ways:
-1. Installation in a Python environment
-2. Installation using Docker
+目前，MPDriver 可以通过以下方式安装：
+1. 在 Python 环境中安装
+2. 使用 Docker 安装
 
-### 1. install to python
+### 1. Python 环境中的安装
 
 ```bash
 python -m pip install git+ssh://git@github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
-## Install via https
+## 通过 https 安装
 # python -m pip install git+https://github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
 ```
 
-Or you can install in development mode
+或者，你也可以以开发模式进行安装。
 
 ```bash
 git clone git@github.com:Kimura-Lab-NIT-Toyota/MPDriver3.git MPDriver3
-## Install via https
+## 通过 https 克隆
 # git clone https://github.com/Kimura-Lab-NIT-Toyota/MPDriver3.git
 cd MPDriver3
 python -m pip install -e .
 ```
 
-### 2. docker install
+### 2. 使用 Docker 安装
 
-Before running the following commands,
-you must have [Docker](https://www.docker.com/ja-jp/) installed on your system.
+在执行以下命令之前，你需要在系统中安装 [Docker](https://www.docker.com/ja-jp/)。
 
 ```shell
 git clone git@github.com:Kimura-Lab-NIT-Toyota/MPDriver3.git MPDriver3
@@ -44,25 +39,25 @@ docker build . -t kimura-lab-nit-toyota/mpdriver3
 docker create -it --name mpdriver3-container kimura-lab-nit-toyota/mpdriver3 bash
 ```
 
-### Check Installation
+### 检查安装
 
 ```bash
 mpdriver -h
-# if not work:
+# 如果不工作：
 python -m MPDriver3 -h
 ```
 
-## Usage
+## 使用方法
 
 ```bash
-# Single video file to CSV file.
+# 将单个视频文件转换为 CSV 文件。
 mpdriver run path/to/video.file -l path/to/outdir
 
-# All videos in the directory to .npy files and also output annotated videos.
+# 将目录中的所有视频转换为 .npy 文件，并输出带注释的视频。
 mpdriver run path/to/video_dir -a path/to/annotated_dir -l path/to/outdir .npy
 ```
 
-or in Docker
+或者在 Docker 中
 
 ```shell
 docker start mpdriver3-container
@@ -72,4 +67,4 @@ docker attach mpdriver3-container
 mpdriver run path/to/video.file --landmark path/to/outdir
 ```
 
-See [MPDriver.run](mpdriver/apps/run/README.md) for more information about run's arguments
+有关 `run` 参数的更多信息，请参见 `[MPDriver.run](mpdriver/apps/run/README.md)`。

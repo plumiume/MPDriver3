@@ -16,7 +16,14 @@ _T = TypeVar("_T")
 _P = ParamSpec("_P")
 PROGRESS_DESC_PREFIX = "{:<16}"
 
+class PrintKwargs(TypedDict):
+    sep: str | None
+    end: str | None
+    file: TextIO | None
+    flush: bool
+
 class Verbose:
+
     LEVEL: dict[Literal["info", "warning", "error", "reset", ""], str] = {
         ""        : "",
         "info"    :         "INFO    : ",
@@ -24,11 +31,14 @@ class Verbose:
         "error"   : "\033[30mERROR   : ",
         "reset"   : "\033[0m"
     }
+
     def __init__(self, _v: bool):
+
         if _v:
             self.print = print
         else:
             self.print = lambda *args, **kwds: None
+
     def message(
         self,
         level: Literal["info", "warning", "error", ""],
@@ -38,12 +48,19 @@ class Verbose:
         file: TextIO | None = None,
         flush: bool = False
         ):
-        self.print(self.LEVEL[level], end="", file=file)
-        self.print(*values, sep=sep, end="", file=file)
-        self.print(self.LEVEL["reset"], sep="", end=end, file=file, flush=flush)
-    def info(self, *args, **kwargs): return self.message('info'*args, **kwargs)
-    def warning(self, *args, **kwargs): return self.message('warning'*args, **kwargs)
-    def error(self, *args, **kwargs): return self.message('error', *args, **kwargs)
+
+        if level == "error":
+            p = print
+        else:
+            p = self.print
+
+        p(self.LEVEL[level], end="", file=file)
+        p(*values, sep=sep, end="", file=file)
+        p(self.LEVEL["reset"], sep="", end=end, file=file, flush=flush)
+
+    def info(self, *args: object, **kwargs: Unpack[PrintKwargs]): return self.message('info'*args, **kwargs)
+    def warning(self, *args: object, **kwargs: Unpack[PrintKwargs]): return self.message('warning'*args, **kwargs)
+    def error(self, *args: object, **kwargs: Unpack[PrintKwargs]): return self.message('error', *args, **kwargs)
 
 
 class SharedDict(TypedDict): # For All Process

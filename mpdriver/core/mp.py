@@ -123,34 +123,43 @@ class MediaPipeHolisticOptions(TypedDict):
     min_tracking_confidence: float # 0.5
     "https://github.com/google/mediapipe/blob/master/docs/solutions/holistic.md#min_tracking_confidence"
 
-mediapipe_holistic_config: MediaPipeHolisticOptions = load_config('mediapipe')
+class MediaPipeIndicesOptions(TypedDict):
+    face: list[int] | None
+    left_hand: list[str] | None
+    right_hand: list[str] | None
+    pose: list[str] | None
+
+class MediaPipeOptions(TypedDict):
+    holistic: MediaPipeHolisticOptions
+    indices: MediaPipeIndicesOptions
+    order: list[Literal["face", "left_hand", "right_hand", "pose"]]
+
+mediapipe_config: MediaPipeOptions = load_config('mediapipe')
+mediapipe_holistic_config = mediapipe_config['holistic']
+mediapipe_indices_config = mediapipe_config["indices"]
+mediapipe_order_config = mediapipe_config["order"]
 
 DEFAULT_DETECT_TARGETS = MediaPipeDict[TargetSpec](
     face = {
-        "indices": [],
+        "indices": slice(None) if (i := mediapipe_indices_config["face"]) is None else i,
         "connections": holistic.FACEMESH_CONTOURS,
         "landmark_drawing_spec": {idx: drawing_utils.DrawingSpec() for idx in range(len(Face))},
         "connection_drawing_spce": drawing_styles.get_default_face_mesh_contours_style()
     },
     left_hand = {
-        "indices": slice(None),
+        "indices": slice(None) if (i := mediapipe_indices_config["left_hand"]) is None else [getattr(Hand, j) for j in i if hasattr(Hand, j)],
         "connections": holistic.HAND_CONNECTIONS,
         "landmark_drawing_spec": drawing_styles.get_default_hand_landmarks_style(),
         "connection_drawing_spce": drawing_styles.get_default_hand_connections_style()
     },
     right_hand = {
-        "indices": slice(None),
+        "indices": slice(None) if (i := mediapipe_indices_config["right_hand"]) is None else [getattr(Hand, j) for j in i if hasattr(Hand, j)],
         "connections": holistic.HAND_CONNECTIONS,
         "landmark_drawing_spec": drawing_styles.get_default_hand_landmarks_style(),
         "connection_drawing_spce": drawing_styles.get_default_hand_connections_style()
     },
     pose = {
-        "indices": [
-            Pose.LEFT_SHOULDER, Pose.RIGHT_SHOULDER,
-            Pose.LEFT_ELBOW, Pose.RIGHT_ELBOW,
-            Pose.LEFT_WRIST, Pose.RIGHT_WRIST,
-            Pose.LEFT_HIP, Pose.RIGHT_HIP
-        ],
+        "indices": slice(None) if (i := mediapipe_indices_config["pose"]) is None else [getattr(Hand, j) for j in i if hasattr(Hand, j)],
         "connections": holistic.POSE_CONNECTIONS,
         "landmark_drawing_spec": drawing_styles.get_default_pose_landmarks_style(),
         "connection_drawing_spce": {conn: drawing_utils.DrawingSpec() for conn in holistic.POSE_CONNECTIONS}
@@ -175,18 +184,20 @@ class MP:
         else:
             return np.array([(float(lm.x), float(lm.y), float(lm.z)) for lm in landmark_list.landmark], dtype=np.float32)
 
-    def detect(self, img: cv2.Mat) -> MediaPipeDict[NDArray[np.float_]]:
+    def detect(self, img: cv2.Mat) -> MediaPipeDict[NDArray[np.float32]]:
 
         solution_outputs: SolutionOutputs = self.holistic.process(img)
 
-        return MediaPipeDict(
-            face = self.detect_landmarks2ndarray(solution_outputs.face_landmarks, Face) if "face" in self.detect_targets else None,
-            left_hand = self.detect_landmarks2ndarray(solution_outputs.left_hand_landmarks, Hand) if "left_hand" in self.detect_targets else None,
-            right_hand = self.detect_landmarks2ndarray(solution_outputs.right_hand_landmarks, Hand) if "right_hand" in self.detect_targets else None,
-            pose = self.detect_landmarks2ndarray(solution_outputs.pose_landmarks, Pose) if "pose" in self.detect_targets else None
-        )
+        detect_output = {
+            "face": self.detect_landmarks2ndarray(solution_outputs.face_landmarks, Face) if "face" in self.detect_targets else None,
+            "left_hand": self.detect_landmarks2ndarray(solution_outputs.left_hand_landmarks, Hand) if "left_hand" in self.detect_targets else None,
+            "right_hand": self.detect_landmarks2ndarray(solution_outputs.right_hand_landmarks, Hand) if "right_hand" in self.detect_targets else None,
+            "pose": self.detect_landmarks2ndarray(solution_outputs.pose_landmarks, Pose) if "pose" in self.detect_targets else None
+        }
 
-    def annotate_pixel_coordinates(self, landmark_array: NDArray[np.float_], width: int, height: int) -> NDArray[np.float_]:
+        return MediaPipeDict((o, detect_output[o]) for o in mediapipe_order_config)
+
+    def annotate_pixel_coordinates(self, landmark_array: NDArray[np.float32], width: int, height: int) -> NDArray[np.float32]:
 
         return np.clip(
             a = landmark_array[:, :2] * (width - 1, height - 1),
@@ -214,11 +225,11 @@ class MP:
     
         return img
 
-    def annotate(self, img: cv2.Mat, mp_dict: MediaPipeDict[NDArray[np.float_] | None]) -> cv2.Mat:
+    def annotate(self, img: cv2.Mat, mp_dict: MediaPipeDict[NDArray[np.float32] | None]) -> cv2.Mat:
 
         out_img = img.copy()
 
-        pixel_coordinates = MediaPipeDict[NDArray[np.float_]]({
+        pixel_coordinates = MediaPipeDict[NDArray[np.float32]]({
             target: self.annotate_pixel_coordinates(landmark_array, img.shape[1], img.shape[0])
             for target, landmark_array in mp_dict.items()
             if landmark_array is not None and not np.isnan(landmark_array).any()
@@ -238,7 +249,7 @@ class MP:
     
     def normalize(
         self,
-        mp_dict: MediaPipeDict[NDArray[np.float_]],
+        mp_dict: MediaPipeDict[NDArray[np.float32]],
         clip: bool = True
         ):
 
@@ -250,7 +261,7 @@ class MP:
             "top": center[Y] - width, "bottom": center[Y] + width
         }
 
-        return MediaPipeDict[NDArray[np.float_]]({
+        return MediaPipeDict[NDArray[np.float32]]({
             target: (
                 np.clip(
                     landmark_array,
@@ -265,7 +276,7 @@ class MP:
 
     def flatten(
         self,
-        mp_dict: MediaPipeDict[NDArray[np.float_]],
+        mp_dict: MediaPipeDict[NDArray[np.float32]],
         ):
 
         return np.concatenate([

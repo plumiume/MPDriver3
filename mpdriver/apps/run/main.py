@@ -23,7 +23,7 @@ from .args import RunArgs
 class RunApp(AppBase):
 
     def __init__(self):
-        holistic_options: MediaPipeHolisticOptions = load_config('mediapipe')
+        holistic_options: MediaPipeHolisticOptions = load_config('mediapipe')['holistic']
 
         self.mp = MP(
             detect_targets = ["left_hand", "right_hand", "pose"],

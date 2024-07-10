@@ -3,10 +3,12 @@ from setuptools import setup, find_packages
 setup(
     name = "MPDriver3",
     summary = "MediaPipeによる姿勢推定アプリケーション",
-    version = "0.0",
+    version = "0.1",
     author = "kimlab",
     author_email = "kimlab.nittc@gmail.com",
-    packages = find_packages(),
+    packages = [
+        "mpdriver"
+    ],
     install_requires = [
         "typing_extensions",
         "opencv-python",

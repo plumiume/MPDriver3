@@ -1,6 +1,10 @@
+### Lang
+[JA](/rm/apps/run/ja.md)  
+[CH](/rm/apps/run/ch.md)  
+
 # About
 
-動画に映る人物の関節点を推定し，アノテーションされた動画，アノテーションマトリックスのどちらかまたは両方を出力する
+Estimate the joint points of the person in the video, and output either the annotated video, the annotation matrix, or both.
 
 # Help
 
@@ -13,33 +17,33 @@ mpdriver run <src> [-l | --landmarks <outdir> [<ext>] [optkey=optvalue ...]]
 ```
 
 ### `--landmark`
-関節点の２次元配列についての設定
+Settings for the 2D array of joint points
 
-- `outdir`: 出力先のディレクトリ．もし存在しないなら作成される
-- `ext`: 出力形式．".csv", ".npy"がサポート
+- `outdir`: Output directory. If it does not exist, it will be created
+- `ext`: Output format. ".csv", ".npy" are supported
 
 #### option
-- `overwrite=false`: 上書きする
-- `normalize=true`: 正規化する
-- `clip=true`:  値を -1 ~ 1 の範囲に切り抜く
+- `overwrite=false`: Overwrite
+- `normalize=true`: Normalize
+- `clip=true`: Clip the values to the range of -1 to 1
 
 ### `--annotated`
-アノテーションされた動画についての設定
+Settings for annotated videos
 
-- `outdir`: 出力先のディレクトリ．もし存在しないなら作成される
-- `ext`: 出力形式．OpenCVが対応する出力なら利用可能
+- `outdir`: Output directory. If it does not exist, it will be created
+- `ext`: Output format. Available if supported by OpenCV
 
 #### option
-- `show=false`: 表示する
-- `overwrite=false`: 上書きする
-- `fps=25`: 出力のフレームレートを設定する
+- `show=false`: Display
+- `overwrite=false`: Overwrite
+- `fps=25`: Set the output frame rate
 
 ### `--cpu`
-マルチプロセスを使用
+Use multiprocessing
 
-- `n_cpu`: 使用するプロセス数
+- `n_cpu`: Number of processes to use
 
 ### `--add-ext`
-追加のビデオ拡張子 mimetypeライブラリでvideo/*とならない拡張子は登録してください
+Additional video extension. Register extensions that do not become `video/*` with the mimetype library
 
-- `v_ext`: 拡張子 `.flv` のように記述
+- `v_ext`: Describe the extension like `.flv`

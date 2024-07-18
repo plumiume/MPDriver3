@@ -50,7 +50,11 @@ class RunApp(AppBase):
         landmarks: Path | None = None,
         show_annotated: bool = False,
         fps: float = 30,
+        draw_lm: bool = True,
+        draw_conn: bool = True,
+        mask_face: bool = False,
         normalize_clip: bool = True,
+        with_header: bool = False,
         tqdm_kwds: TqdmKwargs = {},
         rlock: RLock | None = None,
         src_str_len: int | None = None
@@ -94,7 +98,7 @@ class RunApp(AppBase):
 
         if annotated is not None or show_annotated:
             # np.Mat, MPD -> MPD, np.Mat
-            job = ((mpd, self.mp.annotate(f, mpd)) for f, mpd in job) # 関節点の描画
+            job = ((mpd, self.mp.annotate(f, mpd, draw_conn, draw_lm, mask_face)) for f, mpd in job) # 関節点の描画
 
             if show_annotated:
                 # MPD, np.Mat -> MPD, np.Mat
@@ -148,9 +152,11 @@ class RunApp(AppBase):
 
         if landmarks.suffix == ".csv": # CSVで出力
 
+            header = self.mp.header(",") if with_header else ""
+
             if rlock is not None: rlock.acquire()
             os.makedirs(landmarks.parent, exist_ok=True)
-            np.savetxt(landmarks, matrix, delimiter=",")
+            np.savetxt(landmarks, matrix, delimiter=",", header=header)
             if rlock is not None: rlock.release()
 
         elif landmarks.suffix == ".npy": # NumPy.npy形式で出力
@@ -203,7 +209,11 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 landmarks,
                 ns.annotated[1]["show"],
                 ns.annotated[1]["fps"],
-                ns.landmarks[1]["clip"]
+                ns.annotated[1]["draw_lm"],
+                ns.annotated[1]["draw_conn"],
+                ns.annotated[1]["mask_face"],
+                ns.landmarks[1]["clip"],
+                ns.landmarks[1]["header"]
             ), {})
             return
 
@@ -235,7 +245,11 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 landmarks,
                 ns.annotated[1]["show"],
                 ns.annotated[1]["fps"],
-                ns.landmarks[1]["clip"]
+                ns.annotated[1]["draw_lm"],
+                ns.annotated[1]["draw_conn"],
+                ns.annotated[1]["mask_face"],
+                ns.landmarks[1]["clip"],
+                ns.landmarks[1]["header"]
             ), {})
 
     args_kwargs_list = list(executor._tqdm_func(

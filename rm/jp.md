@@ -1,16 +1,3 @@
-
-Let's start by loading the contents of your uploaded file. I'll read through it and then provide the translation, ensuring the backticks are escaped properly.
-
-I'll first open and display the contents of your README.md file.
-
-Here is the content from your README.md file with the backticks escaped and translated into Japanese:
-
-markdown
-コードをコピーする
-### Lang
-- [JP](/rm/jp.md)
-- [CH](/rm/ch.md)
-
 ## 必要条件
 
 このシステムには以下が必要です：

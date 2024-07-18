@@ -37,10 +37,13 @@ class RunArgs(AppArgs):
         show: bool
         overwrite: bool
         fps: float
+        draw_lm: bool
+        draw_conn: bool
+        mask_face: bool
     annotated: tuple[tuple[Path | None, str], AnnotatedOptions] = parser.add_argument(
         '--annotated', '-a',
-        type=((Path, None), {'show': lambda x: bool(json.loads(x)), 'overwrite': lambda x: bool(json.loads(x)), 'fps': float}),
-        default=((None, '.mp4'), {'show': False, 'overwrite': False, 'fps': 30}),
+        type=((Path, None), {'show': bool, 'overwrite': bool, 'fps': float, 'draw_lm': bool, 'draw_conn': bool, 'mask_face': bool}),
+        default=((None, '.mp4'), {'show': False, 'overwrite': False, 'fps': 30, 'draw_lm': True, 'draw_conn': True, 'mask_face': True}),
         action=NArgsAction, nargs='*',
         help=textwrap.dedent('''
             アノテーション出力
@@ -49,9 +52,12 @@ class RunArgs(AppArgs):
                     dst         アノテーション出力ディレクトリ
                     ext         アノテーション出力の拡張子
             options:
-                    show        表示する
-                    overwrite   上書きする
-                    fps         出力のフレームレート
+                    show        表示する (True)
+                    overwrite   上書きする (False)
+                    fps         出力のフレームレート (30)
+                    draw_lm     ランドマークの描画 (True)
+                    draw_conn   ボーンの表示 (True)
+                    mask_face   顔のマスキング (False)
         ''').strip()
     )
     'アノテーション出力ディレクトリ'
@@ -59,10 +65,11 @@ class RunArgs(AppArgs):
         overwrite: bool
         normalize: bool
         clip: bool
+        header: bool
     landmarks: tuple[tuple[Path | None, str], LandmarksOptions] = parser.add_argument(
         '--landmarks', '-l', action=NArgsAction, nargs='*',
-        type=((Path, None), {'overwrite': lambda x: bool(json.loads(x)), 'normalize': bool, 'clip': bool}),
-        default = (default := ((None, '.csv'), {'overwrite': False, 'normalize': True, 'clip': True})),
+        type=((Path, None), {'overwrite': bool, 'normalize': bool, 'clip': bool, 'header': bool}),
+        default = (default := ((None, '.csv'), {'overwrite': False, 'normalize': True, 'clip': True, 'header': False})),
         help=textwrap.dedent('''
             ランドマーク出力
             --landmarks dst [ext] [optkey=optvalue]
@@ -72,9 +79,10 @@ class RunArgs(AppArgs):
                                 .csv  : CSV
                                 .npy  : Numpy.npy
             options:
-                    overwrite   上書きする
-                    normalize   正規化する
-                    clip        値を -1 ~ 1 の範囲にする
+                    overwrite   上書きする (False)
+                    normalize   正規化する (True)
+                    clip        値を -1 ~ 1 の範囲にする (True)
+                    header      .csvのヘッダをつける (False)
         ''').strip()
     )
     'ランドマーク出力ディレクトリ'

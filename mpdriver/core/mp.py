@@ -18,7 +18,7 @@ import json
 import numpy as np
 import cv2
 from mediapipe.python.solutions import holistic
-from mediapipe.python.solutions import face_mesh
+from mediapipe.python.solutions import face_mesh_connections
 from mediapipe.python.solutions import drawing_utils, drawing_styles
 
 from ..core.config import load_config
@@ -31,8 +31,10 @@ X = 0
 Y = 1
 Z = 2
 
+### Landmark Definition
+
 class Pose(Index):
-  "MediaPipe姿勢インデックス"
+  "MediaPipe Pose Index"
   NOSE            : Literal[ 0]
   LEFT_EYE_INNER  : Literal[ 1]
   LEFT_EYE        : Literal[ 2]
@@ -69,7 +71,7 @@ class Pose(Index):
 
 class Hand(Index):
   """
-  MediaPipe手インデックス
+  MediaPipe Hand Index
   """
   WRIST            : Literal[ 0]
   THUMB_CMC        : Literal[ 1]
@@ -95,6 +97,8 @@ class Hand(Index):
 
 Face = tuple(range(468))
 
+### Mediapipe result
+
 class Landmark:
     x: float
     y: float
@@ -109,6 +113,8 @@ class SolutionOutputs:
     left_hand_landmarks: LandmarkList
     right_hand_landmarks: LandmarkList
     pose_landmarks: LandmarkList
+
+### config/mediapipe.json
 
 MediaPipeDict = dict[Literal["face", "left_hand", "right_hand", "pose"], _T]
 
@@ -153,6 +159,8 @@ mediapipe_holistic_config = mediapipe_config['holistic']
 mediapipe_indices_config = mediapipe_config["indices"]
 mediapipe_order_config = mediapipe_config["order"]
 
+### configration
+
 DEFAULT_DETECT_TARGETS = MediaPipeDict[TargetSpec](
     face = {
         "indices": slice(None) if (i := mediapipe_indices_config["face"]) is None else i,
@@ -179,6 +187,8 @@ DEFAULT_DETECT_TARGETS = MediaPipeDict[TargetSpec](
         "connection_drawing_spce": {conn: drawing_utils.DrawingSpec() for conn in holistic.POSE_CONNECTIONS}
     }
 )
+
+### body
 
 class MP:
 
@@ -219,19 +229,29 @@ class MP:
             a_max = (width, height)
         ).astype(np.int_)
 
-    def annotate_draw_landmark(
-        self, img: cv2.Mat, points: np.ndarray,
+    def annotate_draw_connections(
+        self, img: cv2.Mat, pixel_coord: NDArray[np.float32],
         connections: frozenset[tuple[int, int]],
-        landmark_draw_spec: Mapping[int, drawing_utils.DrawingSpec],
         connection_draw_spec: Mapping[tuple[int, int], drawing_utils.DrawingSpec]
         ) -> cv2.Mat:
 
         for conn in connections:
             start_point, end_point = conn
             drawing_spec = connection_draw_spec[conn]
-            img = cv2.line(img, points[start_point], points[end_point], drawing_spec.color, drawing_spec.thickness)
-    
-        for idx, p in enumerate(points):
+            img = cv2.line(
+                img,
+                pixel_coord[start_point], pixel_coord[end_point],
+                drawing_spec.color, drawing_spec.thickness
+            )
+
+        return img
+
+    def annotate_draw_landmarks(
+        self, img: cv2.Mat, pixel_coord: NDArray[np.float32],
+        landmark_draw_spec: Mapping[int, drawing_utils.DrawingSpec],
+        ) -> cv2.Mat:
+
+        for idx, p in enumerate(pixel_coord):
             drawing_spec = landmark_draw_spec[idx]
             circle_boarder_radius =  max(drawing_spec.circle_radius + 1, int(drawing_spec.circle_radius * 1.2))
             img = cv2.circle(img, p, circle_boarder_radius, (255, 255, 255), drawing_spec.thickness)
@@ -239,7 +259,24 @@ class MP:
     
         return img
 
-    def annotate(self, img: cv2.Mat, mp_dict: MediaPipeDict[NDArray[np.float32] | None]) -> cv2.Mat:
+    def annotate_face_masking(self, src_img: cv2.Mat, face_pixel_coord: NDArray[np.float32], mask_img: cv2.Mat) -> cv2.Mat:
+
+        mask = cv2.fillConvexPoly(
+            np.zeros_like(src_img),
+            [face_pixel_coord[p] for p, _ in face_mesh_connections.FACEMESH_FACE_OVAL],
+            (255, 255, 255) # bgr
+        )
+
+        return np.where(mask, mask_img, src_img)
+
+    def annotate(
+        self,
+        img: cv2.Mat,
+        mp_dict: MediaPipeDict[NDArray[np.float32] | None],
+        draw_connection: bool = True,
+        draw_landmark: bool = True,
+        mask_face_oval: bool = False
+        ) -> cv2.Mat:
 
         out_img = img.copy()
 
@@ -250,13 +287,26 @@ class MP:
         })
 
         for target, coord in pixel_coordinates.items():
+
             if np.isnan(coord).any(): continue
-            out_img = self.annotate_draw_landmark(
-                out_img,
-                coord,
-                DEFAULT_DETECT_TARGETS[target]["connections"],
-                DEFAULT_DETECT_TARGETS[target]["landmark_drawing_spec"],
-                DEFAULT_DETECT_TARGETS[target]["connection_drawing_spce"]
+
+            if draw_connection:
+                out_img = self.annotate_draw_connections(
+                    out_img, coord,
+                    DEFAULT_DETECT_TARGETS[target]["connections"],
+                    DEFAULT_DETECT_TARGETS[target]["connection_drawing_spce"]
+                )
+
+            if draw_landmark:
+                out_img = self.annotate_draw_landmarks(
+                    out_img, coord,
+                    DEFAULT_DETECT_TARGETS[target]["landmark_drawing_spec"],
+                )
+
+        if mask_face_oval and "face" in pixel_coordinates:
+            out_img = self.annotate_face_masking(
+                out_img, pixel_coordinates["face"],
+                cv2.blur(out_img, max(out_img.shape[0], out_img.shape[1]) // 100)
             )
 
         return out_img

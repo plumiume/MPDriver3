@@ -16,14 +16,14 @@ from typing import Literal
 from pathlib import Path
 import json
 
+_LIBRARY_ROOT = Path(__file__).resolve().parents[1]
 CPATH: dict[Literal['local', 'global', 'system', 'default'], Path] = { # ORDERD
     'local': Path().resolve() / '.mpdriver',
     'global': Path('~').resolve() / '.mpdriver',
-    'system': Path(__file__).resolve().parents[1] / 'config/system',
-    'default': Path(__file__).resolve().parents[1] / 'config/default'
+    'system': _LIBRARY_ROOT / 'config/system'
 }
 
-def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'default'] = 'local'):
+def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'default'] = 'local', default_path: Path | None = None):
 
     cfile_name = cfile_stem + '.json'
 
@@ -31,7 +31,9 @@ def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'defa
         found if (flg :=       (use == 'local'  )) and (found := (CPATH['local' ] / cfile_name)).exists() else
         found if (flg := flg | (use == 'global' )) and (found := (CPATH['global'] / cfile_name)).exists() else
         found if (flg := flg | (use == 'system' )) and (found := (CPATH['system'] / cfile_name)).exists() else
-        (found := CPATH['default'] / cfile_name)
+        found if default_path and (found := _LIBRARY_ROOT / default_path / cfile_name).exists() else
+        # bellow code will delete at version 0.3
+        CPATH['default'] / cfile_name
     )
 
     return json.load(open(config_file))

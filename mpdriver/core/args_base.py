@@ -19,6 +19,10 @@ from typing import Any, Callable, Iterable, Mapping
 from types import ModuleType
 from itertools import count
 
+def Boolean(s: str) -> bool:
+    return s.lower().startswith('t')
+
+
 class AppArgs(argparse.Namespace):
     '''サブコマンドのフィールド定義'''
     command: str

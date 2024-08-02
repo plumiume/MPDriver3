@@ -12,69 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Generic, Literal, Iterable, Iterator, overload
+from typing import Sequence, overload
+from itertools import chain
+from enum import IntEnum
 
-class _IndexMeta(type):
+def get_header(
+    enum: type[IntEnum] | Sequence,
+    indices: list[int | IntEnum],
+    name_prefix: str = '',
+    dim_names: Sequence[str] = ['X', 'Y', 'Z']
+    ):
 
-  def __new__(cls, __name: str, __bases: tuple[type, ...], __namespace: dict[str, any], **kwds):
-    
-    new = super().__new__(cls, __name, __bases, __namespace, **kwds)
-
-    if any(issubclass(b, Generic) for b in new.mro()):
-      raise ValueError(f"Index type is not \"Generic\" subclass")
-
-    index_name_map: dict[int, str] = dict(getattr(new, "_index_name_map", {}))
-    setattr(new, "_index_name_map", index_name_map)
-
-    for k, v in __namespace.items():
-
-      if k[0] == "_" or not k.isupper(): continue
-
-      if v in index_name_map:
-        raise ValueError(f"{v} is already used in \"{__name}\" class.")
-
-      index_name_map[v] = k
-    
-    for k, v in new.__annotations__.items():
-
-      if k[0] == "_" or not k.isupper(): continue
-
-      if not v.__dict__.get("__origin__", None) == Literal: continue
-      if not v.__args__ or not isinstance(init_value := v.__args__[0], int): continue
-      if isinstance(getattr(new, k, None), int): continue
-
-      if init_value in index_name_map:
-        raise ValueError(f"{init_value} is already used in \"{__name}\" class.")
-
-      index_name_map[init_value] = k
-      setattr(new, k, init_value)
-
-    return new
-  
-  def __init__(self, __name: str, __bases: tuple[type, ...], __namespace: dict[str, any], **kwds):
-    super().__init__(__name, __bases, __namespace, **kwds)
-    self._index_name_map: dict[int, str]
-  def __iter__(self):
-    return iter(self._index_name_map.values())
-  def __len__(self):
-    return len(self._index_name_map)
-  def __contains__(self, __key):
-    if isinstance(__key, int):
-      return __key in self._index_name_map
-    elif isinstance(__key, str):
-      return __key in self._index_name_map.values()
+    if isinstance(enum, Sequence):
+        def getter(idx: int):
+            return enum[idx]
+    elif issubclass(enum, IntEnum):
+        def getter(idx: IntEnum):
+            return enum(idx).name
     else:
-      return False
-  @overload
-  def __getitem__(self, __key: int) -> str: ...
-  @overload
-  def __getitem__(self, __key: Iterable[int]) -> Iterator[str]: ...
-  def __getitem__(self, __key):
-    if isinstance(__key, int):
-      return self._index_name_map[__key]
-    elif isinstance(__key, Iterable):
-      return (self._index_name_map[k] for k in __key)
-    else: raise KeyError(f"only int or Iterable[int] allowed. ({__key.__class__})")
+        raise TypeError
 
-class Index(metaclass=_IndexMeta):
-  "インデックスクラス"
+    return list(chain.from_iterable(
+        (f'{name_prefix}_{getter(idx)}_{dn}' for dn in dim_names)
+        for idx in indices
+    ))
+
+@overload
+def to_landmark_indices(enum: type[IntEnum], list_str: list[str] | None) -> list[IntEnum]: ...
+@overload
+def to_landmark_indices(seq_int: Sequence[int], list_int: list[int] | None) -> list[int]: ...
+@overload
+def to_landmark_indices(_enum: type[IntEnum] | Sequence[int] | None, _list: list[str | int] | None) -> list[IntEnum | int]: ...
+def to_landmark_indices(_enum: type[IntEnum] | Sequence[int] | None, _list: list[str | int] | None) -> list[IntEnum | int]:
+
+    if _enum is None:
+        return slice(None)
+
+    if _list is None:
+        _list = _enum
+
+    if isinstance(_enum, Sequence):
+        return [_enum[i] for i in _list]
+
+    elif issubclass(_enum, IntEnum):
+        return [
+            _enum[i] if isinstance(i, str) else _enum(i)
+            for i in _list
+        ]
+
+    raise TypeError

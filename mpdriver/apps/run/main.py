@@ -23,25 +23,20 @@ from multiprocessing.synchronize import RLock
 import numpy as np
 import cv2
 
-from mpdriver.core.mp import MediaPipeHolisticOptions
-
 from ...utils import is_video, is_image, VideoCapture, VideoWriter, cap_to_frame_iter, video_or_imgdir_pathes
-from ...core.mp import MP, MediaPipeHolisticOptions
 from ...core.main_base import AppBase, AppWorkerThread, AppExecutor, PROGRESS_DESC_PREFIX
 from ...core.progress import TqdmKwargs
-from ...core.config import load_config
+# from ...core.mp import MP
+from ...core import index
+
+from ...engine.mediapipe import MP
 
 from .args import RunArgs
 
 class RunApp(AppBase):
 
     def __init__(self):
-        holistic_options: MediaPipeHolisticOptions = load_config('mediapipe')['holistic']
-
-        self.mp = MP(
-            detect_targets = ["left_hand", "right_hand", "pose"],
-            holistic_options = holistic_options
-        )
+        self.mp = MP()
 
     def run(
         self,
@@ -152,7 +147,7 @@ class RunApp(AppBase):
 
         if landmarks.suffix == ".csv": # CSVで出力
 
-            header = self.mp.header(",") if with_header else ""
+            header = self.mp.get_header() if with_header else ""
 
             if rlock is not None: rlock.acquire()
             os.makedirs(landmarks.parent, exist_ok=True)

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TypedDict
 import json
 
-from ...core.args_base import subparsers, help_action, textwrap, argparse, NArgsAction, AppArgs, HelpFormatter
+from ...core.args_base import subparsers, help_action, textwrap, argparse, NArgsAction, AppArgs, HelpFormatter, Boolean
 
 command = Path(__file__).parent.name
 parser = subparsers.add_parser(command, add_help=False, formatter_class=HelpFormatter)
@@ -42,7 +42,7 @@ class RunArgs(AppArgs):
         mask_face: bool
     annotated: tuple[tuple[Path | None, str], AnnotatedOptions] = parser.add_argument(
         '--annotated', '-a',
-        type=((Path, None), {'show': bool, 'overwrite': bool, 'fps': float, 'draw_lm': bool, 'draw_conn': bool, 'mask_face': bool}),
+        type=((Path, None), {'show': Boolean, 'overwrite': Boolean, 'fps': float, 'draw_lm': Boolean, 'draw_conn': Boolean, 'mask_face': Boolean}),
         default=((None, '.mp4'), {'show': False, 'overwrite': False, 'fps': 30, 'draw_lm': True, 'draw_conn': True, 'mask_face': True}),
         action=NArgsAction, nargs='*',
         help=textwrap.dedent('''
@@ -68,8 +68,8 @@ class RunArgs(AppArgs):
         header: bool
     landmarks: tuple[tuple[Path | None, str], LandmarksOptions] = parser.add_argument(
         '--landmarks', '-l', action=NArgsAction, nargs='*',
-        type=((Path, None), {'overwrite': bool, 'normalize': bool, 'clip': bool, 'header': bool}),
-        default = (default := ((None, '.csv'), {'overwrite': False, 'normalize': True, 'clip': True, 'header': False})),
+        type=((Path, None), {'overwrite': Boolean, 'normalize': Boolean, 'clip': Boolean, 'header': Boolean}),
+        default = ((None, '.csv'), {'overwrite': False, 'normalize': True, 'clip': True, 'header': False}),
         help=textwrap.dedent('''
             ランドマーク出力
             --landmarks dst [ext] [optkey=optvalue]
@@ -83,6 +83,8 @@ class RunArgs(AppArgs):
                     normalize   正規化する (True)
                     clip        値を -1 ~ 1 の範囲にする (True)
                     header      .csvのヘッダをつける (False)
+                                ヘッダー行を表す # が先頭に付加されます
+                                e.g. '# LM0_X, LM0_Y, LM0_Z, LM1_X, ...'
         ''').strip()
     )
     'ランドマーク出力ディレクトリ'

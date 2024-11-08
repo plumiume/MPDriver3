@@ -12,22 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ffmpeg
-
-from ...core.main_base import Verbose
-from .args import InstallArgs
-
-def app_main(ns: InstallArgs):
-
-    verbose = Verbose(ns.verbose)
-
-    match ns.subcommand:
-        case 'check':
-            try:
-                ffmpeg.probe("not_exists.mp4")
-            except FileNotFoundError:
-                verbose.error("ffmpeg is not installed")
-                verbose.error("please check your system")
-                verbose.info("This script tested by ffmpeg.probe")
-        case None:
-            verbose.info('nothing to do')
+HELP = {
+    'core.__main__:guide_subcommand': 'サブコマンドリスト。以下のコマンドが使用できます',
+    'core.args_base:root_argparser_description': 'MediaPipeDriver コマンドライン',
+    'core.args_base:root_argparser_epilog': '各サブコマンドのヘルプも確認できます',
+    'core.args_base:root_argparser_help_action': 'このヘルプメッセージを表示して終了する',
+}

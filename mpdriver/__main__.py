@@ -18,8 +18,8 @@ def main():
     import importlib
     from pathlib import Path
     from multiprocessing import freeze_support
-    import textwrap
 
+    from .core.args_lang import HELP
     from .core.args_base import AppArgs, AppMainModule, _root_argparser, subparsers
 
     freeze_support()
@@ -42,10 +42,9 @@ def main():
     for app_name in app_module_speces:
         importlib.import_module(app_module_speces[app_name]['args'], PACKAGE_ROOT.name)
 
-    subparsers.help = textwrap.dedent(f"""
-        サブコマンド。以下のコマンドが使用できます
-        {', '.join(subparsers._name_parser_map.keys())}
-    """).strip()
+    subparsers.help = '\n'.join(
+        [HELP["core.__main__:guide_subcommand"]] + list(subparsers._name_parser_map.keys())
+    )
 
     namespace: AppArgs = _root_argparser.parse_args()
 

@@ -15,9 +15,10 @@
 import argparse
 from argparse import Action
 import textwrap
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Iterable, Sequence, Mapping
 from types import ModuleType
 from itertools import count
+from ..core.args_lang import HELP
 
 def Boolean(s: str) -> bool:
     return s.lower().startswith('t')
@@ -122,12 +123,26 @@ class HelpFormatter(argparse.RawTextHelpFormatter, argparse.RawDescriptionHelpFo
             result = ' '.join(formats) % get_metavar(action.nargs)
         return result
 
+class HelpAction(argparse._HelpAction):
+
+    def __init__(self, option_strings: Sequence[str], url: str, dest = "==SUPPRESS==", default = "==SUPPRESS==", help: str | None = None):
+        super().__init__(option_strings, dest, default, help)
+        self.url = url
+
+    def __call__(self, parser, namespace, values, option_string = None):
+        if option_string == '--help' and self.url is not None:
+            import webbrowser
+            print(f"Opening {self.url} in the default web browser...")
+            webbrowser.open(self.url)
+            return parser.exit()
+        return super().__call__(parser, namespace, values, option_string)
+
 _root_argparser = argparse.ArgumentParser(
     formatter_class = HelpFormatter,
     prog = 'mpdriver',
-    description = 'MediaPipeDriver コマンドライン',
-    epilog = textwrap.dedent('''
-        各サブコマンドのヘルプも確認できます
+    description = HELP['core.args_base:root_argparser_description'],
+    epilog = textwrap.dedent(f'''
+        {HELP['core.args_base:root_argparser_epilog']}
             mpdriver <command> -h
     '''),
     add_help = False,
@@ -135,11 +150,12 @@ _root_argparser = argparse.ArgumentParser(
 )
 '''mpdriverのルート引数解析器'''
 
-help_action = _root_argparser.add_argument(
-    '--help', '-h',
-    action = argparse._HelpAction,
-    help = 'このヘルプメッセージを表示して終了する'
-)
+def get_help_action(url: str | None = None, help: str | None = None):
+    return HelpAction(
+        ['--help', '-h'],
+        url=url,
+        help=HELP['core.args_base:root_argparser_help_action'] if help is None else help
+    )
 '''カスタムヘルプメッセージ'''
 
 subparsers = _root_argparser.add_subparsers(

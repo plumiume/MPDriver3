@@ -53,4 +53,15 @@ parser.add_argument("-v", "--verbose", action=argparse._StoreTrueAction)
 `args.py` に，ロードに時間のかかるモジュールをインポートしないでください．
 ヘルプの表示 `mpdriver -h` (または `mpdriver <command> -h`) に毎回時間がかかるようになります．
 
+## `main.py`
 
+ここにはアプリの実体コードを配置します．
+
+アプリのエントリポイントとして，`argparse.Namespace`を引数に持つ`main`関数を作成します．
+
+```python
+def main(namespace: MyAppArgs):
+    ## something to do
+    pass
+    # return None
+```

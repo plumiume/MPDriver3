@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.import json
 
+import json
+
 from ...core.config import CPATH, load_config
 from ...core.main_base import Verbose
 from .args import ConfigArgs
@@ -63,5 +65,5 @@ def app_main(ns: ConfigArgs):
         return 
 
     json.dump(config, open(CPATH[usr] / cfile_name, 'w'), indent=4)
-    
+
     verbose.message('info', 'bye.')

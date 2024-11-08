@@ -13,13 +13,15 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any
-from ...core.args_base import subparsers, help_action, textwrap, argparse, NArgsAction, AppArgs, HelpFormatter
+from ...core.args_base import subparsers, get_help_action, argparse, AppArgs, HelpFormatter
+from .help import HELP
 
 command = Path(__file__).parent.name
 parser = subparsers.add_parser(command, add_help=False, formatter_class=HelpFormatter)
 parser.set_defaults(command=command)
-parser._add_action(help_action)
+parser._add_action(get_help_action(
+    url='https://github.com/plumiume/MPDriver3/tree/main/mpdriver/apps/config/README.md'
+))
 
 """
     mpdriver config [--local] [--global] [--system] key [value]

@@ -40,8 +40,9 @@ you must have [Docker](https://www.docker.com/) installed on your system.
 ```shell
 git clone git@github.com:plumiume/MPDriver3.git MPDriver3
 cd MPDriver3
-docker build . -t plumiume/mpdriver3
-docker create -it --name mpdriver3-container plumiume/mpdriver3 bash
+docker build . -t plumiume/mpdriver3:latest
+# please visit https://hub.docker.com/repository/docker/plumiiume/mpdriver3
+# and pull image plumiume/mpdriver3
 ```
 
 ### Check Installation
@@ -65,11 +66,7 @@ mpdriver run path/to/video_dir -a path/to/annotated_dir -l path/to/outdir .npy
 or in Docker
 
 ```shell
-docker start mpdriver3-container
-docker attach mpdriver3-container
-```
-```shell
-mpdriver run path/to/video.file --landmark path/to/outdir
+docker run --rm -it plumiume/mpdriver3:latest mpdriver run path/to/video.file --landmark path/to/outdir
 ```
 
 See [MPDriver.run](mpdriver/apps/run/README.md) for more information about run's arguments

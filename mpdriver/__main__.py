@@ -32,8 +32,8 @@ def main():
 
     app_module_speces = {
         app_module.name: AppModuleSpec(
-            args = f".{(app_module / 'args').as_posix().replace('/', '.')}",
-            main = f".{(app_module / 'main').as_posix().replace('/', '.')}"
+            args=f".{(app_module / 'args').as_posix().replace('/', '.')}",
+            main=f".{(app_module / 'main').as_posix().replace('/', '.')}"
         )
         for app_dir in PACKAGE_ROOT.glob("apps/*")
         if (app_module := app_dir.relative_to(PACKAGE_ROOT)).name[0] != "_" and app_dir.is_dir()

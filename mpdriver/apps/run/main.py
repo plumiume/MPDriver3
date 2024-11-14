@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import os
+import shutil
 from pathlib import Path
 from itertools import *
 from typing import *
+from hashlib import sha256
+import tempfile
 import mimetypes
 import unicodedata
 from multiprocessing.synchronize import RLock
@@ -37,6 +40,13 @@ class RunApp(AppBase):
 
     def __init__(self):
         self.mp = MP()
+        self.tmpdir = Path(tempfile.mkdtemp())
+
+    def __del__(self):
+        try:
+            shutil.rmtree(self.tmpdir)
+        except:
+            pass
 
     def run(
         self,
@@ -59,7 +69,8 @@ class RunApp(AppBase):
         imshow_winname = str(id(self))
         stem_ext = None if annotated is None else annotated.name
 
-        tqdm_handler = AppWorkerThread.get_thread().tqdm_handler
+        current_thread = AppWorkerThread.get_thread()
+        tqdm_handler = current_thread.tqdm_handler
 
         # if is_video(src):
         if src.is_file():
@@ -89,61 +100,79 @@ class RunApp(AppBase):
         total_str_len = max(4, len(str(total)))
 
         # np.Mat -> np.Mat, MPD (=MediaPipeDict)
-        job = ((f, self.mp.detect(f)) for f in frame_iter) # 姿勢推定
+        tasks = ((f, self.mp.detect(f)) for f in frame_iter) # 姿勢推定
 
         if annotated is not None or show_annotated:
             # np.Mat, MPD -> MPD, np.Mat
-            job = ((mpd, self.mp.annotate(f, mpd, draw_conn, draw_lm, mask_face)) for f, mpd in job) # 関節点の描画
+            tasks = ((mpd, self.mp.annotate(f, mpd, draw_conn, draw_lm, mask_face)) for f, mpd in tasks) # 関節点の描画
 
             if show_annotated:
                 # MPD, np.Mat -> MPD, np.Mat
                 # （変化しない）
-                job = (((mpd, ann), cv2.imshow(imshow_winname, ann), cv2.waitKey(1))[0] for mpd, ann in job) # 描画したものを表示
+                tasks = (((mpd, ann), cv2.imshow(imshow_winname, ann), cv2.waitKey(1))[0] for mpd, ann in tasks) # 描画したものを表示
+
+            if annotated is None:
+                # Nothing to do
+                # MPD, np.Mat -> MPD
+                tasks = (mpd for mpd, ann in tasks)
 
             if stem_ext and is_video(stem_ext):
-                video_writer = VideoWriter(annotated.as_posix(), fourcc, fps, size) # 描画したものを保存（to動画）
+                tmp_video = (self.tmpdir / f'{hash(annotated)}.{annotated.suffix}').as_posix()
+                video_writer = VideoWriter(tmp_video, fourcc, fps, size) # 描画したものを保存（to動画）
                 # MPD, np.Mat -> MPD
-                job = ((mpd, video_writer.write(ann))[0] for mpd, ann in job)
+                tasks = ((mpd, video_writer.write(ann))[0] for mpd, ann in tasks)
+                video_writer.release()
+                fi = open(tmp_video, 'rb')
+                fo = open(annotated.as_posix(), 'wb')
+                fo.write(fi.read())
 
             elif stem_ext and is_image(stem_ext):
                 # MPD, np.Mat -> MPD
-                job = (
+                tasks = (
                     (mpd, cv2.imwrite(
                         (annotated.parent / annotated.stem / f"{{:0{total_str_len}}}{{}}".format(idx, annotated.suffix)),
                         ann
                     ))[0]
-                    for idx, (mpd, ann) in enumerate(job)
+                    for idx, (mpd, ann) in enumerate(tasks)
                 ) # 描画したものを保存（to連続画像）
-            
+
             else:
-                raise AssertionError("may be unreach")
-        
+                raise AssertionError(f"may be unreach (type of stem_ext '({stem_ext}: {stem_ext.__class__})')")
+
         else:
             # np.Mat, MPD -> MPD
-            job = (mpd for f, mpd in job) # イテレータの整形
+            tasks = (mpd for f, mpd in tasks) # イテレータの整形
 
         # MPD -> np.float
-        job = (self.mp.flatten(self.mp.normalize(mpd, clip=normalize_clip)) for mpd in job) # 3次元のフレームを１列に並べる
+        tasks = (self.mp.flatten(self.mp.normalize(mpd, clip=normalize_clip)) for mpd in tasks) # 3次元のフレームを１列に並べる
 
         src_str_len = 70 if src_str_len is None else src_str_len
 
-        progress = tqdm_handler.tqdm(job, **({
+        tasks = tqdm_handler.tqdm(tasks, **({
             "total": total, "desc": str_src,
-            "bar_format": f"{{desc:{70 if src_str_len is None else src_str_len}}} {{percentage:6.2f}}%|{{bar}}|{{n:{total_str_len}d}}/{{total:{total_str_len}d}}{{postfix}}",
+            "bar_format": (
+                f"{{desc:{70 if src_str_len is None else src_str_len}}} "
+                f"{{percentage:6.2f}}%|"
+                f"{{bar}}|"
+                f"{{n:{total_str_len}d}}/{{total:{total_str_len}d}}|"
+                f"{{rate_fmt}}{{postfix}}"
+            ),
             "priority": 0,
+            "unit": "f"
         } | tqdm_kwds)) # プログレスバー
 
         if landmarks is None:
-            for _ in progress: pass # 実行
-            del progress
+            for _ in tasks: pass # 実行
+            del tasks
             return
 
         # check that result is empty 
-        if not bool(list_job := list(progress)):
+        if not bool(matrix := list(tasks)):
             tqdm_handler.write(f'skip at {src} because it isn\'t detected from src')
             return
+        del tasks
 
-        matrix = np.stack(list_job)
+        matrix = np.stack(matrix)
 
         if landmarks.suffix == ".csv": # CSVで出力
 
@@ -161,7 +190,6 @@ class RunApp(AppBase):
             np.save(landmarks, matrix)
             if rlock is not None: rlock.release()
 
-        del job
         return
 
 class RunExecutor(AppExecutor[RunApp]): # 子プロセス上の実行クラス
@@ -189,7 +217,7 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
 
             if ns.landmarks[0][0] is None: # 関節点の出力なし
                 landmarks = None
-            else:                          # 関節店の出力あり
+            else:                          # 関節点の出力あり
                 landmarks = (ns.landmarks[0][0] / ns.src.name).with_suffix(ns.landmarks[0][1])
                 if not ns.landmarks[1]["overwrite"] and landmarks.exists():
                     landmarks = None
@@ -197,6 +225,19 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
             if annotated is None and landmarks is None and not ns.annotated[1]["show"]:
                 # mediapipeの姿勢推定が必要ない状態
                 return
+
+            print(((
+                ns.src,
+                annotated,
+                landmarks,
+                ns.annotated[1]["show"],
+                ns.annotated[1]["fps"],
+                ns.annotated[1]["draw_lm"],
+                ns.annotated[1]["draw_conn"],
+                ns.annotated[1]["mask_face"],
+                ns.landmarks[1]["clip"],
+                ns.landmarks[1]["header"]
+            ), {}))
 
             yield ((
                 ns.src,

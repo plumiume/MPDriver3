@@ -33,9 +33,12 @@ X = 0
 Y = 1
 Z = 2
 
+TARGET_DIMS = Literal["x", "y", "z", "visibility"]
 TARGET_NAMES = Literal["face", "left_hand", "right_hand", "pose"]
 
 class MediaPipeDict(dict[TARGET_NAMES, _T]): ...
+
+
 ### Landmark Definition
 
 class Pose(IntEnum):
@@ -82,7 +85,7 @@ class Hand(IntEnum):
     """
     WRIST             =  0
     THUMB_CMC         =  1
-    THUMB_MDP         =  2
+    THUMB_MCP         =  2
     THUMB_IP          =  3
     THUMB_TIP         =  4
     INDEX_FINGER_MCP  =  5
@@ -97,10 +100,10 @@ class Hand(IntEnum):
     RING_FINGER_PIP   = 14
     RING_FINGER_DIP   = 15
     RING_FINGER_TIP   = 16
-    PINKY_FINGER_MCP  = 17
-    PINKY_FINGER_PIP  = 18
-    PINKY_FINGER_DIP  = 19
-    PINKY_FINGER_TIP  = 20
+    PINKY_MCP  = 17
+    PINKY_PIP  = 18
+    PINKY_DIP  = 19
+    PINKY_TIP  = 20
 
 Face = tuple(range(face_mesh.FACEMESH_NUM_LANDMARKS))
 
@@ -110,6 +113,7 @@ INDEXINGS = MediaPipeDict[type[IntEnum] | Sequence[int]](
     right_hand = Hand,
     pose = Pose
 )
+
 
 ### Mediapipe result
 
@@ -128,8 +132,8 @@ class SolutionOutputs:
     right_hand_landmarks: LandmarkList
     pose_landmarks: LandmarkList
 
-### config/mediapipe.json
 
+### config/mediapipe.json
 
 class TargetSpec(TypedDict):
     landmark_indices: slice | list[int]
@@ -157,17 +161,20 @@ class MediaPipeHolisticOptions(TypedDict):
     "https://github.com/google/mediapipe/blob/master/docs/solutions/holistic.md#min_tracking_confidence"
 
 class MediaPipeLandmarkIndicesOptions(TypedDict):
+    "None is a configuration that use all landmarks"
     face: list[int] | None
     left_hand: list[str] | None
     right_hand: list[str] | None
     pose: list[str] | None
 
 MediaPipeAnnotateTargetsOptions = list[TARGET_NAMES]
+MediaPipeDimensionTargetsOptions = list[TARGET_DIMS]
 
 class MediaPipeOptions(TypedDict):
     holistic: MediaPipeHolisticOptions
     landmark_indices: MediaPipeLandmarkIndicesOptions
     annotate_targets: MediaPipeAnnotateTargetsOptions
+    dimension_targets: MediaPipeDimensionTargetsOptions
 
 mediapipe_config: MediaPipeOptions = load_config('mediapipe', default_path=Path('engine/mediapipe'))
 
@@ -201,8 +208,6 @@ DEFAULT_CONNECTION_DRAWING_SPEC = MediaPipeDict(
     right_hand=drawing_styles.get_default_hand_connections_style(),
     pose={conn: drawing_utils.DrawingSpec() for conn in holistic.POSE_CONNECTIONS}
 )
-
-a = index.to_landmark_indices(Pose, list[str]())
 
 ### body
 

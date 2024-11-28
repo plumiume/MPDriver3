@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterable, Literal, Callable, TypeVar, overload
+from typing import Iterable, Literal, Callable, TypeVar, overload, Any
 from pathlib import Path
 import json
 
@@ -44,7 +44,11 @@ def _find(func: Callable[[_T], bool], iterable: Iterable[_T], *args: _U):
     else:
         raise ValueError
 
-def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'default'] = 'local', default_path: Path | None = None):
+@overload
+def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'default'] = 'local', default_path: Path | None = None, ctype: None = ...) -> Any: ...
+@overload
+def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'default'] = 'local', default_path: Path | None = None, ctype: type[_T] = ...) -> _T: ...
+def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'default'] = 'local', default_path: Path | None = None, ctype: Any = None):
 
     cfile_name = cfile_stem + '.json'
 
@@ -66,3 +70,25 @@ def load_config(cfile_stem: str, use: Literal['local', 'global', 'system', 'defa
         raise FileNotFoundError(f'{config_file} is a non-existent item')
     except FileNotFoundError:
         raise FileNotFoundError(f'No such file or directory: {config_file}, at finding step \'{flg}\'')
+
+def decompose_keys(obj_temp, keys: list[str]) -> tuple[dict, Any, int] | tuple[list, Any, str] | tuple[None, Any, None]:
+    obj_prev = None
+    k = None
+    for i, k in enumerate(keys):
+        if isinstance(obj_temp, list):
+            try:
+                obj_prev = obj_temp
+                obj_temp = obj_temp[int(k)]
+            except ValueError:
+                raise KeyError(f'refered object is list but key is invalid literal for int() with base 10: \'{k}\'')
+            except IndexError:
+                raise KeyError(f'list index out of range: {int(k)}')
+        elif isinstance(obj_temp, dict):
+            try:
+                obj_prev = obj_temp
+                obj_temp = obj_temp[k]
+            except KeyError:
+                raise KeyError(f'key {k} of {keys} is not found')
+        else:
+            raise KeyError(f'refered object do not have any children: {obj_temp}')
+    return obj_prev, obj_temp, k

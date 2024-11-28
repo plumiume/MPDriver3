@@ -20,5 +20,6 @@
             "LEFT_HIP", "RIGHT_HIP"
         ]
     },
-    "annotate_targets": ["left_hand", "right_hand", "pose"]
+    "annotate_targets": ["left_hand", "right_hand", "pose"],
+    "dimension_targets": ["x", "y", "z"]
 }

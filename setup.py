@@ -25,7 +25,7 @@ setup(
     ],
     install_requires = [
         "typing_extensions",
-        "opencv-python",
+        "opencv-python==4.10.0.84",
         "ffmpeg-python",
         "mediapipe",
         "tqdm"

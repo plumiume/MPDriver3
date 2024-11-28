@@ -6,7 +6,7 @@
 
 This system requires the following:
 
-[FFmpeg](https://ffmpeg.org/download.html)
+- [FFmpeg](https://ffmpeg.org/download.html)
 
 ## Instllation
 

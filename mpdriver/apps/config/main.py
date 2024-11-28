@@ -15,7 +15,7 @@
 import os
 import json
 
-from ...core.config import CPATH, load_config
+from ...core.config import CPATH, load_config, decompose_keys
 from ...core.main_base import Verbose
 from .args import ConfigArgs
 
@@ -50,18 +50,11 @@ def app_main(ns: ConfigArgs):
 
     config = load_config(cfile_stem, use)
 
-    obj_prev = None
-    obj_temp = config
-    for i, k in enumerate(keys):
-        if isinstance(obj_temp, list):
-            obj_prev = obj_temp
-            obj_temp = obj_temp[int(k)]
-        elif isinstance(obj_temp, dict):
-            obj_prev = obj_temp
-            obj_temp = obj_temp[k]
-        else:
-            verbose.message('error', f'key \'{"".join(ckey[:i+2])}\' is not found')
-            return
+    try:
+        obj_prev, obj_temp, k = decompose_keys(config, keys)
+    except KeyError as e:
+        verbose.message('error', *e.args)
+        return
 
     if ns.value is None: # GET
         verbose.message('info', f'get from \'{ns.key}\'')
@@ -70,7 +63,12 @@ def app_main(ns: ConfigArgs):
 
     # else SET
     verbose.message('info', f'set \'{ns.value}\' to \'{ns.key}\' ')
-    obj_prev[k] = json.loads(ns.value)
+    if isinstance(obj_prev, list):
+        obj_prev[int(k)] = json.loads(ns.value)
+    elif isinstance(obj_prev, dict):
+        obj_prev[k] = json.loads(ns.value)
+    else:
+        verbose.message('warning', 'can\'t set to non container object. nothing to do')
 
     if use == 'default':
         verbose.message('warning', 'can\'t set to default. nothing to do.')

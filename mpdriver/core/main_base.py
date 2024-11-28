@@ -171,7 +171,7 @@ class AppExecutor(Generic[_AB]): # For Main Process
 
         if cpu is None:
 
-            self.multi_process_dict = self._signle_init(self.io_lock)
+            self.multi_process_dict = self._signle_init(self.io_lock, appbase_args, appbase_kwargs)
             self._map_func = map
             self._tqdm_func = TqdmSingle.tqdm
 
@@ -187,7 +187,7 @@ class AppExecutor(Generic[_AB]): # For Main Process
                 "pool": (pool := ProcessPoolExecutor(
                     max_workers = cpu,
                     initializer = self._multi_init,
-                    initargs = (self.io_lock, shared)
+                    initargs = (self.io_lock, shared, appbase_args, appbase_kwargs)
                 ))
             })
             self._map_func = pool.map

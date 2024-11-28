@@ -23,6 +23,7 @@ from mediapipe.python.solutions import holistic
 from mediapipe.python.solutions import face_mesh, face_mesh_connections
 from mediapipe.python.solutions import drawing_utils, drawing_styles
 
+from ...core.utils import raise_exception
 from ...core.config import load_config
 from ...core import index
 
@@ -176,7 +177,7 @@ class MediaPipeOptions(TypedDict):
     annotate_targets: MediaPipeAnnotateTargetsOptions
     dimension_targets: MediaPipeDimensionTargetsOptions
 
-mediapipe_config: MediaPipeOptions = load_config('mediapipe', default_path=Path('engine/mediapipe'))
+mediapipe_config = load_config('mediapipe', default_path=Path('engine/mediapipe'), ctype=MediaPipeOptions)
 
 
 ### configration
@@ -187,9 +188,10 @@ FACEMESH_FACE_OVAL_ORDERED = [tmp]
 while (tmp := dffo.pop(tmp, None)) is not None:
     FACEMESH_FACE_OVAL_ORDERED.append(tmp)
 
-DEFAULT_HOLISTIC_KWARGS = mediapipe_config['holistic']
-DEFAULT_LANDMARK_INDICES = mediapipe_config['landmark_indices']
-DEFAULT_ANNOTATE_TARGETS = mediapipe_config['annotate_targets']
+# DEFAULT_HOLISTIC_KWARGS = mediapipe_config['holistic']
+# DEFAULT_LANDMARK_INDICES = mediapipe_config['landmark_indices']
+# DEFAULT_ANNOTATE_TARGETS = mediapipe_config['annotate_targets']
+# DEFAULT_DIMENSION_TARGETS = mediapipe_config['dimension_targets']
 DEFAULT_CONNECTIONS = MediaPipeDict(
     face=holistic.FACEMESH_CONTOURS,
     left_hand=holistic.HAND_CONNECTIONS,
@@ -209,6 +211,7 @@ DEFAULT_CONNECTION_DRAWING_SPEC = MediaPipeDict(
     pose={conn: drawing_utils.DrawingSpec() for conn in holistic.POSE_CONNECTIONS}
 )
 
+
 ### body
 
 class MP:
@@ -218,19 +221,33 @@ class MP:
         holistic_options: MediaPipeHolisticOptions | None = None,
         landmarks_indices: MediaPipeLandmarkIndicesOptions | None = None,
         annotate_targets: MediaPipeAnnotateTargetsOptions | None = None,
+        dimension_targets: MediaPipeDimensionTargetsOptions | None = None,
         connections: MediaPipeDict[set[tuple[int, int]]] | None = None,
         landmark_drawing_spec: MediaPipeDict[Mapping[int, drawing_utils.DrawingSpec]] | None = None,
         connection_drawing_spec: MediaPipeDict[Mapping[tuple[int, int], drawing_utils.DrawingSpec]] | None = None
         ):
 
         self.header_cache = ''
+        self.dims_cache: list[int] | None = None
 
-        self.holistic = holistic.Holistic(**(holistic_options or DEFAULT_HOLISTIC_KWARGS))
+        print(holistic_options or mediapipe_config['holistic'])
+
+        self.holistic = holistic.Holistic(**(holistic_options or mediapipe_config['holistic']))
         self.landmark_indices = MediaPipeDict({
             target: index.to_landmark_indices(INDEXINGS[target], indices)
-            for target, indices in (landmarks_indices or DEFAULT_LANDMARK_INDICES).items()
+            for target, indices in (landmarks_indices or mediapipe_config['landmark_indices']).items()
         })
-        self.annotate_targets = annotate_targets or DEFAULT_ANNOTATE_TARGETS
+        self.annotate_targets = annotate_targets or mediapipe_config['annotate_targets']
+        self.dimension_targets = {
+            dim_name: (
+                0 if dim_name == 'x' else
+                1 if dim_name == 'y' else
+                2 if dim_name == 'z' else
+                3 if dim_name == 'visibility' else
+                raise_exception(NameError, f'invalid dimension name ({dim_name})')
+            )
+            for dim_name in (dimension_targets or mediapipe_config['dimension_targets'])
+        }
         self.connections = connections or DEFAULT_CONNECTIONS
         self.landmark_drawing_spec = landmark_drawing_spec or DEFAULT_LANDMARK_DRAWING_SPEC
         self.connection_drawing_spec = connection_drawing_spec or DEFAULT_CONNECTION_DRAWING_SPEC
@@ -238,9 +255,9 @@ class MP:
     def detect_landmarks2ndarray(self, landmark_list: LandmarkList | None, landmark_index: Sized) -> NDArray[np.float32]:
 
         if landmark_list is None:
-            return np.full([len(landmark_index), 3], np.nan, dtype=np.float32)
+            return np.full([len(landmark_index), 4], np.nan, dtype=np.float32)
         else:
-            return np.array([(float(lm.x), float(lm.y), float(lm.z)) for lm in landmark_list.landmark], dtype=np.float32)
+            return np.array([(float(lm.x), float(lm.y), float(lm.z), float(lm.visibility)) for lm in landmark_list.landmark], dtype=np.float32)
 
     def detect(self, img: cv2.Mat) -> MediaPipeDict[NDArray[np.float32]]:
 
@@ -259,7 +276,7 @@ class MP:
             a = landmark_array[:, :2] * (width - 1, height - 1),
             a_min = (0, 0),
             a_max = (width, height)
-        ).astype(np.int_)
+        ).astype(np.int32)
 
     def annotate_draw_connections(
         self, img: cv2.Mat, pixel_coord: NDArray[np.float32],
@@ -338,8 +355,8 @@ class MP:
             if draw_connection:
                 out_img = self.annotate_draw_connections(
                     out_img, pixel_coordinates[target],
-                    DEFAULT_CONNECTIONS[target],
-                    DEFAULT_CONNECTION_DRAWING_SPEC[target]
+                    self.connections[target],
+                    self.connection_drawing_spec[target]
                 )
 
             if draw_landmark:
@@ -368,12 +385,12 @@ class MP:
             target: (
                 np.clip(
                     landmark_array,
-                    a_min = np.array([clip_domain["left"], clip_domain["top"], -np.inf]),
-                    a_max = np.array([clip_domain["right"], clip_domain["bottom"], np.inf])
+                    a_min = np.array([clip_domain["left"], clip_domain["top"], -np.inf, -np.inf]),
+                    a_max = np.array([clip_domain["right"], clip_domain["bottom"], np.inf, np.inf])
                 )
                 if clip else
                 landmark_array
-            ) / np.array([clip_domain["right"] - clip_domain["left"], clip_domain["bottom"] - clip_domain["top"], 1])
+            ) / np.array([clip_domain["right"] - clip_domain["left"], clip_domain["bottom"] - clip_domain["top"], 1, 1])
             for target, landmark_array in mp_dict.items() if landmark_array is not None
         })
 
@@ -382,8 +399,10 @@ class MP:
         mp_dict: MediaPipeDict[NDArray[np.float32]],
         ):
 
+        self.dims_cache = self.dims_cache or list(self.dimension_targets.values())
+
         return np.concatenate([
-            mp_dict[target][indices]
+            mp_dict[target][indices][..., self.dims_cache]
             for target, indices in self.landmark_indices.items()
         ], axis=-2).reshape(-1)
 
@@ -391,10 +410,10 @@ class MP:
 
         self.header_cache = self.header_cache or delimiter.join(chain.from_iterable(
             index.get_header(
-                INDEXINGS[target],
-                indices,
-                target,
-                ['X', 'Y', 'Z']
+                enum=INDEXINGS[target],
+                indices=indices,
+                name_prefix=target,
+                dim_names=[d.capitalize() for d in self.dimension_targets]
             )
             for target, indices in self.landmark_indices.items()
         ))

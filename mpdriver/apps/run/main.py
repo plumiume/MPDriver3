@@ -17,7 +17,7 @@ import shutil
 from pathlib import Path
 from itertools import *
 from typing import *
-from hashlib import sha256
+import json
 import tempfile
 import mimetypes
 import unicodedata
@@ -26,21 +26,35 @@ from multiprocessing.synchronize import RLock
 import numpy as np
 import cv2
 
-from ...utils import is_video, is_image, VideoCapture, VideoWriter, cap_to_frame_iter, video_or_imgdir_pathes
+from ...utils import FOURCC, VideoCapture, VideoWriter, VideoWriter_fourcc
+from ...utils import is_image, is_video, cap_to_frame_iter, video_or_imgdir_pathes
+from ...core.config import decompose_keys
 from ...core.main_base import AppBase, AppWorkerThread, AppExecutor, PROGRESS_DESC_PREFIX
 from ...core.progress import TqdmKwargs
-# from ...core.mp import MP
-from ...core import index
 
-from ...engine.mediapipe import MP
+from ...engine.mediapipe import MP, mediapipe_config
 
 from .args import RunArgs
 
+os.environ['GRPC_VERBOSITY'] = 'ERROR'
+os.environ['GLOG_minloglevel'] = '2'
+
 class RunApp(AppBase):
 
-    def __init__(self):
-        self.mp = MP()
+    def __init__(self, config: list[tuple[str, str]] = []):
+
         self.tmpdir = Path(tempfile.mkdtemp())
+
+        for ck, cv in config:
+            cfile, *keys = ck.split('.')
+            if cfile != 'mediapipe':
+                continue
+            obj_prev, obj_temp, k = decompose_keys(mediapipe_config, keys)
+            obj_prev[k] = json.loads(cv)
+
+        print(mediapipe_config)
+
+        self.mp = MP()
 
     def __del__(self):
         try:
@@ -58,6 +72,7 @@ class RunApp(AppBase):
         draw_lm: bool = True,
         draw_conn: bool = True,
         mask_face: bool = False,
+        fourcc: str | None = None,
         normalize_clip: bool = True,
         with_header: bool = False,
         tqdm_kwds: TqdmKwargs = {},
@@ -77,18 +92,24 @@ class RunApp(AppBase):
 
             cap = VideoCapture(str_src)
             total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            # TODO add AV1 support
-            # fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
-            fourcc = VideoWriter.fourcc(*"mp4v")
+            if annotated.suffix in FOURCC:
+                fourcc = VideoWriter_fourcc(*FOURCC[annotated.suffix])
+            else:
+                print('WARNNING:', f'annotated .ext \'{annotated.suffix}\' is invalid. use \'.mp4\'')
+                fourcc = VideoWriter_fourcc(*'h264')
             fps = float(cap.get(cv2.CAP_PROP_FPS))
             size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
             frame_iter = cap_to_frame_iter(cap, end=total)
 
+        # elif is_frame_sequence(src):
         else:
 
             img_pathes = list(p for p in src.iterdir() if is_image(p))
             total = len(img_pathes)
-            fourcc = VideoWriter.fourcc(*"mp4v")
+            if annotated.suffix in FOURCC:
+                fourcc = VideoWriter_fourcc(*FOURCC[annotated.suffix])
+            else:
+                fourcc = VideoWriter_fourcc(*'h264')
             # fps = fps
             img_iter = (cv2.imread(f.as_posix(), cv2.IMREAD_COLOR) for f in img_pathes)
             if (f0 := next(img_iter, None)) is None:
@@ -98,6 +119,7 @@ class RunApp(AppBase):
             frame_iter = chain((f0,), img_iter)
 
         total_str_len = max(4, len(str(total)))
+        on_completed_tasks = list[Callable[[], None]]()
 
         # np.Mat -> np.Mat, MPD (=MediaPipeDict)
         tasks = ((f, self.mp.detect(f)) for f in frame_iter) # 姿勢推定
@@ -121,10 +143,12 @@ class RunApp(AppBase):
                 video_writer = VideoWriter(tmp_video, fourcc, fps, size) # 描画したものを保存（to動画）
                 # MPD, np.Mat -> MPD
                 tasks = ((mpd, video_writer.write(ann))[0] for mpd, ann in tasks)
-                video_writer.release()
-                fi = open(tmp_video, 'rb')
-                fo = open(annotated.as_posix(), 'wb')
-                fo.write(fi.read())
+                def release_video():
+                    video_writer.release()
+                    fi = open(tmp_video, 'rb')
+                    fo = open(annotated.as_posix(), 'wb')
+                    fo.write(fi.read())
+                on_completed_tasks.append(release_video)
 
             elif stem_ext and is_image(stem_ext):
                 # MPD, np.Mat -> MPD
@@ -172,6 +196,9 @@ class RunApp(AppBase):
             return
         del tasks
 
+        for task in on_completed_tasks:
+            task()
+
         matrix = np.stack(matrix)
 
         if landmarks.suffix == ".csv": # CSVで出力
@@ -197,7 +224,7 @@ class RunExecutor(AppExecutor[RunApp]): # 子プロセス上の実行クラス
 
 def app_main(ns: RunArgs): # アプリケーションのコマンドラインツール用エントリーポイント
 
-    executor = RunExecutor(ns.cpu)
+    executor = RunExecutor(ns.cpu, (ns.config,))
 
     for ext in ns.add_ext:
         if ext.startswith('.'):
@@ -226,19 +253,6 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 # mediapipeの姿勢推定が必要ない状態
                 return
 
-            print(((
-                ns.src,
-                annotated,
-                landmarks,
-                ns.annotated[1]["show"],
-                ns.annotated[1]["fps"],
-                ns.annotated[1]["draw_lm"],
-                ns.annotated[1]["draw_conn"],
-                ns.annotated[1]["mask_face"],
-                ns.landmarks[1]["clip"],
-                ns.landmarks[1]["header"]
-            ), {}))
-
             yield ((
                 ns.src,
                 annotated,
@@ -248,8 +262,9 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 ns.annotated[1]["draw_lm"],
                 ns.annotated[1]["draw_conn"],
                 ns.annotated[1]["mask_face"],
+                ns.annotated[1]["fourcc"],
                 ns.landmarks[1]["clip"],
-                ns.landmarks[1]["header"]
+                ns.landmarks[1]["header"],
             ), {})
             return
 
@@ -284,8 +299,9 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 ns.annotated[1]["draw_lm"],
                 ns.annotated[1]["draw_conn"],
                 ns.annotated[1]["mask_face"],
+                ns.annotated[1]["fourcc"],
                 ns.landmarks[1]["clip"],
-                ns.landmarks[1]["header"]
+                ns.landmarks[1]["header"],
             ), {})
 
     args_kwargs_list = list(executor._tqdm_func(

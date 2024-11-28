@@ -14,6 +14,7 @@ mpdriver run <src> [-l | --landmarks <outdir> [<ext>] [optkey=optvalue ...]]
                    [-a | --annotated <outdir> [<ext>] [optkey=optvalue ...]]
                    [-p | --cpu <n_cpu>]
                    [--add-ext <v_ext>]
+                   [--config confkey=confvalue]
 ```
 
 ### `--landmark`
@@ -47,3 +48,10 @@ Use multiprocessing
 Additional video extension. Register extensions that do not become `video/*` with the mimetype library
 
 - `v_ext`: Describe the extension like `.flv`
+
+### `--config`
+Additional configuration. Values ​​set here take precedence over any configuration files.
+You can use multiple key-value pairs at the same time.
+
+- `confkey`: The key of the item to set. Same as JSON object reference
+- `convvalue`: The value of the setting. Only values ​​that can be parsed into JSON are valid.

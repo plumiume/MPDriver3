@@ -1,11 +1,17 @@
 from pathlib import Path
 from itertools import count, chain
-from typing import overload, TypeAlias, Iterable, Iterator, TypedDict, Literal
+from typing import overload, TypeAlias, Iterable, Iterator, TypedDict, Literal, Callable
 from typing_extensions import Self
 import mimetypes
 import cv2
 
 PathLike = str | Path
+
+FOURCC = {
+    '.avi': 'xvid',
+    '.mov': 'mp4v',
+    '.mp4': 'h264',
+}
 
 class VideoCapture:
   @overload
@@ -65,7 +71,8 @@ class VideoWriter:
   def fourcc(c1: str, c2: str, c3: str, c4: str) -> FourCC: ...
 VideoWriter = cv2.VideoWriter
 
-VideoWriter_fourcc = cv2.VideoWriter_fourcc
+def VideoWriter_fourcc(a: str, b: str, c: str, d: str) -> int:
+    return int(cv2.VideoWriter_fourcc(a, b, c, d))
 
 FFmpegProbeStreamDisposition = dict[
   Literal[

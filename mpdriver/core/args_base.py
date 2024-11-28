@@ -97,31 +97,49 @@ class HelpFormatter(argparse.RawTextHelpFormatter, argparse.RawDescriptionHelpFo
             result = '*ARGS **KWARGS'
             return result
         # END ADD
-        if action.nargs is None:
-            result = '%s' % get_metavar(1)
-        elif action.nargs == argparse.OPTIONAL:
-            result = '[%s]' % get_metavar(1)
-        elif action.nargs == argparse.ZERO_OR_MORE:
-            metavar = get_metavar(1)
-            if len(metavar) == 2:
-                result = '[%s [%s ...]]' % metavar
-            else:
-                result = '[%s ...]' % metavar
-        elif action.nargs == argparse.ONE_OR_MORE:
-            result = '%s [%s ...]' % get_metavar(2)
-        elif action.nargs == argparse.REMAINDER:
-            result = '...'
-        elif action.nargs == argparse.PARSER:
-            result = '%s ...' % get_metavar(1)
-        elif action.nargs == argparse.SUPPRESS:
-            result = ''
-        else:
-            try:
-                formats = ['%s' for _ in range(action.nargs)]
-            except TypeError:
-                raise ValueError("invalid nargs value") from None
-            result = ' '.join(formats) % get_metavar(action.nargs)
+        match action.nargs:
+            case None:
+                result = '%s' % get_metavar(1)
+            case argparse.OPTIONAL:
+                result = '[%s]' % get_metavar(1)
+            case argparse.ZERO_OR_MORE:
+                metavar = get_metavar(1)
+                if len(metavar) == 2:
+                    result = '[%s [%s ...]]' % metavar
+                else:
+                    result = '[%s ...]' % metavar
+            case argparse.ONE_OR_MORE:
+                result = '%s [%s ...]' % get_metavar(2)
+            case argparse.REMAINDER:
+                result = '...'
+            case argparse.PARSER:
+                result = '%s ...' % get_metavar(1)
+            case argparse.SUPPRESS:
+                result = ''
+            case _:
+                try:
+                    formats = ['%s' for _ in range(action.nargs)]
+                except TypeError:
+                    raise ValueError("invalid nargs value") from None
+                result = ' '.join(formats) % get_metavar(action.nargs)
         return result
+
+    def _format_action_invocation(self, action: argparse.Action):
+
+        if not action.option_strings:
+            return super()._format_action_invocation(action)
+
+        ret = ', '.join(action.option_strings)
+        
+        if not action.metavar:
+            default = self._get_default_metavar_for_optional(action)
+            metavar = self._format_args(action, default)
+        elif isinstance(action.metavar, str):
+            metavar = action.metavar
+        else: # isinstance(action.metavar, tuple[str, ...])
+            metavar = ' '.join(action.metavar)
+
+        return f'{ret} {metavar}'
 
 class HelpAction(argparse._HelpAction):
 
@@ -143,7 +161,7 @@ _root_argparser = argparse.ArgumentParser(
     description = HELP['core.args_base:root_argparser_description'],
     epilog = textwrap.dedent(f'''
         {HELP['core.args_base:root_argparser_epilog']}
-            mpdriver <command> -h
+            mpdriver <command> ( -h | --help )
     '''),
     add_help = False,
     allow_abbrev=False
@@ -157,6 +175,10 @@ def get_help_action(url: str | None = None, help: str | None = None):
         help=HELP['core.args_base:root_argparser_help_action'] if help is None else help
     )
 '''カスタムヘルプメッセージ'''
+
+_root_argparser._add_action(get_help_action(
+    url='https://github.com/plumiume/MPDriver3/blob/main/README.md'
+))
 
 subparsers = _root_argparser.add_subparsers(
     title = 'sub commands',

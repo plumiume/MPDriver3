@@ -12,7 +12,7 @@ This system requires the following:
 
 Currently, MPDriver can be installed in the following ways:
 1. Installation in a Python environment
-2. Installation using Docker
+<!-- 2. Installation using Docker -->
 
 ### 1. install to python
 
@@ -32,7 +32,7 @@ cd MPDriver3
 python -m pip install -e .
 ```
 
-### 2. docker install
+<!-- ### 2. docker install
 
 Before running the following commands,
 you must have [Docker](https://www.docker.com/) installed on your system.
@@ -43,7 +43,7 @@ cd MPDriver3
 docker build . -t plumiume/mpdriver3:latest
 # please visit https://hub.docker.com/repository/docker/plumiiume/mpdriver3
 # and pull image plumiume/mpdriver3
-```
+``` -->
 
 ### Check Installation
 
@@ -63,10 +63,12 @@ mpdriver run path/to/video.file -l path/to/outdir
 mpdriver run path/to/video_dir -a path/to/annotated_dir -l path/to/outdir .npy
 ```
 
-or in Docker
+<!-- or in Docker
 
 ```shell
-docker run --rm -it plumiume/mpdriver3:latest mpdriver run path/to/video.file --landmark path/to/outdir
-```
+docker run -it -d -v path/to/outdir:outdir --name mpdriver3 plumiume/mpdriver3:latest bash
+docker cp path/to/video.file mpdriver3:video.file
+docker exec -it mpdriver3 mpdriver run video.file --landmarks outdir .npy
+``` -->
 
 See [MPDriver.run](mpdriver/apps/run/README.md) for more information about run's arguments

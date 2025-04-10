@@ -230,8 +230,6 @@ class MP:
         self.header_cache = ''
         self.dims_cache: list[int] | None = None
 
-        print(holistic_options or mediapipe_config['holistic'])
-
         self.holistic = holistic.Holistic(**(holistic_options or mediapipe_config['holistic']))
         self.landmark_indices = MediaPipeDict({
             target: index.to_landmark_indices(INDEXINGS[target], indices)
@@ -373,7 +371,7 @@ class MP:
         clip: bool = True
         ):
 
-        center = (mp_dict['pose'][Pose.LEFT_SHOULDER] + mp_dict['pose'][Pose.LEFT_SHOULDER]) / 2
+        center = (mp_dict['pose'][Pose.LEFT_SHOULDER] + mp_dict['pose'][Pose.RIGHT_SHOULDER]) / 2
         width = abs(mp_dict['pose'][Pose.LEFT_SHOULDER][X] - mp_dict['pose'][Pose.RIGHT_SHOULDER][X])
 
         clip_domain = {

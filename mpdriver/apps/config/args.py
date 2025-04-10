@@ -22,9 +22,9 @@ parser = subparsers.add_parser(
     command, add_help=False, formatter_class=HelpFormatter,
     usage=dedent("""
         mpdriver config [--local | --global | --system | --default]
-                               key [value]
-                               [-v | --verbose] [-y | --yes]
-                               [--reset] [-c | --copy] [-d | --default]
+                        key [value]
+                        [-v | --verbose] [-y | --yes]
+                        [--reset] [-c | --copy] [-d | --default]
     """).strip().replace('\r\n', '       \r\n')
 )
 parser.set_defaults(command=command)

@@ -45,14 +45,13 @@ class RunApp(AppBase):
 
         self.tmpdir = Path(tempfile.mkdtemp())
 
+        # Apply additional configuration
         for ck, cv in config:
             cfile, *keys = ck.split('.')
             if cfile != 'mediapipe':
                 continue
             obj_prev, obj_temp, k = decompose_keys(mediapipe_config, keys)
             obj_prev[k] = json.loads(cv)
-
-        print(mediapipe_config)
 
         self.mp = MP()
 
@@ -92,11 +91,12 @@ class RunApp(AppBase):
 
             cap = VideoCapture(str_src)
             total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            if annotated.suffix in FOURCC:
-                fourcc = VideoWriter_fourcc(*FOURCC[annotated.suffix])
-            else:
-                print('WARNNING:', f'annotated .ext \'{annotated.suffix}\' is invalid. use \'.mp4\'')
-                fourcc = VideoWriter_fourcc(*'h264')
+            fourcc = VideoWriter_fourcc(*'h264')
+            if annotated is not None:
+                if annotated.suffix in FOURCC:
+                    fourcc = VideoWriter_fourcc(*FOURCC[annotated.suffix])
+                else:
+                    print('WARNNING:', f'annotated .ext \'{annotated.suffix}\' is invalid. use \'.mp4\'')
             fps = float(cap.get(cv2.CAP_PROP_FPS))
             size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
             frame_iter = cap_to_frame_iter(cap, end=total)
@@ -106,10 +106,12 @@ class RunApp(AppBase):
 
             img_pathes = list(p for p in src.iterdir() if is_image(p))
             total = len(img_pathes)
-            if annotated.suffix in FOURCC:
-                fourcc = VideoWriter_fourcc(*FOURCC[annotated.suffix])
-            else:
-                fourcc = VideoWriter_fourcc(*'h264')
+            fourcc = VideoWriter_fourcc(*'h264')
+            if annotated is not None:
+                if annotated.suffix in FOURCC:
+                    fourcc = VideoWriter_fourcc(*FOURCC[annotated.suffix])
+                else:
+                    print('WARNNING:', f'annotated .ext \'{annotated.suffix}\' is invalid. use \'.mp4\'')
             # fps = fps
             img_iter = (cv2.imread(f.as_posix(), cv2.IMREAD_COLOR) for f in img_pathes)
             if (f0 := next(img_iter, None)) is None:
@@ -190,12 +192,13 @@ class RunApp(AppBase):
             del tasks
             return
 
-        # check that result is empty 
+        # Check that result is empty 
         if not bool(matrix := list(tasks)):
             tqdm_handler.write(f'skip at {src} because it isn\'t detected from src')
             return
         del tasks
 
+        # Execute all on_completed_tasks
         for task in on_completed_tasks:
             task()
 

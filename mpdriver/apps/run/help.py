@@ -32,7 +32,9 @@ HELP = {
     'apps.run.args:landmarks_options_clip': '値を -1 ~ 1 の範囲にする ({default})',
     'apps.run.args:landmarks_options_header_0': '.csvのヘッダをつける ({default})',
     'apps.run.args:landmarks_options_header_1': 'ヘッダー行を表す # が先頭に付加されます',
+    'apps.run.args:landmarks_options_flat': 'フラットな形式で出力する ({default})',
     'apps.run.args:cpu': 'マルチプロセスの数を設定する．指定しない場合はシングルプロセスで動作します',
     'apps.run.args:add_ext': '入力動画ファイルの追加の拡張子．',
+    'apps.run.args:template': 'テンプレートファイルのパス',
     'apps.run.args:config': '追加の設定．[confkey]=[confvalue]で設定ファイルの内容を上書きできます',
 }

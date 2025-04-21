@@ -335,10 +335,10 @@ class TqdmProcess(Process):
 class TqdmSingle:
     @overload
     @classmethod
-    def tqdm(cls, iterable: Iterable[_T], **tqdm_proxy_kwargs): ...
+    def tqdm(cls, iterable: Iterable[_T], **tqdm_proxy_kwargs) -> Tqdm[_T]: ...
     @overload
     @classmethod
-    def tqdm(cls, iterable: Iterable[_T], **tqdm_proxy_kwargs: Unpack[TqdmProxyKwargs]): ...
+    def tqdm(cls, iterable: Iterable[_T], **tqdm_proxy_kwargs: Unpack[TqdmProxyKwargs]) -> Tqdm[_T]: ...
     @classmethod
     def tqdm(cls, iterable: Iterable[_T], **tqdm_proxy_kwargs: Unpack[TqdmProxyKwargs]):
         tqdm_kwargs = TqdmProxyKwargs.to_tqdm_kwargs(tqdm_proxy_kwargs)
@@ -488,6 +488,14 @@ class TqdmProxy(Generic[_T]):
 
     def __init__(self, host: TqdmHost, client: TqdmClient | None, iterable: Iterable[_T], tqdm_proxy_kwargs: TqdmProxyKwargs):
 
+        if not isinstance(host, TqdmHost):
+            raise TypeError("host must be an instance of TqdmHost")
+        if client is not None and not isinstance(client, TqdmClient):
+            raise TypeError("client must be an instance of TqdmClient or None")
+
+        if not isinstance(iterable, Iterable):
+            raise TypeError("iterable must be an instance of Iterable")
+
         self._host: TqdmHost = host
         self._client: TqdmClient | None = client
 
@@ -594,6 +602,10 @@ class TqdmProxy(Generic[_T]):
     @colour.setter
     def colour(self, value: str | None):
         self._call("_setattr", ("colour", value))
+
+    @property
+    def last_print_n(self) -> int:
+        return self._call("_getattr", ("last_print_n",))
 
     @property
     def pos(self) -> int | None:

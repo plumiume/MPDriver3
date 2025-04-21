@@ -53,6 +53,12 @@ class ConfigArgs(AppArgs):
         '--default', action=argparse._StoreTrueAction, dest='file_default',
         help=HELP['apps.config.args:file_default']
     )
+    from_template: Path | None = parser.add_argument(
+        '--from-template', '--template',
+        type=Path, default=None,
+        help=HELP['apps.config.args:from_template'],
+        choices=Path(__file__).parents[3].joinpath('templates').iterdir()
+    )
     key: str = parser.add_argument('key', help=HELP['apps.config.args:key'])
     '項目'
     value: str | None = parser.add_argument('value', nargs=argparse.OPTIONAL, default=None, help=HELP['apps.config.args:value'])

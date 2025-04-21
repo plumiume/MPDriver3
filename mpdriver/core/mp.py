@@ -325,7 +325,7 @@ class MP:
         clip: bool = True
         ):
 
-        center = (mp_dict['pose'][Pose.LEFT_SHOULDER] + mp_dict['pose'][Pose.LEFT_SHOULDER]) / 2
+        center = (mp_dict['pose'][Pose.LEFT_SHOULDER] + mp_dict['pose'][Pose.RIGHT_SHOULDER]) / 2
         width = abs(mp_dict['pose'][Pose.LEFT_SHOULDER][X] - mp_dict['pose'][Pose.RIGHT_SHOULDER][X])
 
         clip_domain = {

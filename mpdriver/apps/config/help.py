@@ -3,6 +3,7 @@ HELP = {
     'apps.config.args:file_global': 'Use the global configuration file (user-wide settings).',
     'apps.config.args:file_system': 'Use the system-wide configuration file (requires admin permissions).',
     'apps.config.args:file_default': 'Use the default configuration file if no specific level is set.',
+    'apps.config.args:from_template': 'Specify a template file to copy settings from.',
     'apps.config.args:key': 'The configuration item to be set or retrieved.',
     'apps.config.args:value': 'The value to assign to the configuration item, if applicable.',
     'apps.config.args:verbose': 'Enable verbose output to display detailed operation logs.',

@@ -26,19 +26,6 @@ def app_main(ns: ConfigArgs):
     cfile_stem, *keys = ckey = ns.key.split('.')
     cfile_name = cfile_stem + '.json'
 
-    # config_file = (
-    #     found if (usr :=        (ns.file_local  and 'local'  )) and (found := (CPATH['local' ] / cfile_name)).exists() else
-    #     found if (usr := usr or (ns.file_global and 'global' )) and (found := (CPATH['global'] / cfile_name)).exists() else
-    #     found if (usr := usr or (ns.file_system and 'system' )) and (found := (CPATH['system'] / cfile_name)).exists() else
-    #     (usr := usr or 'default') and (found := CPATH['default'] / cfile_name)
-    # )
-
-    # if ns.value is None and usr != found.parent.name:
-    #     verbose.message('warning', f'use \'{usr}\' given, but don\'t found it, so use \'{found.parent.name}\'.')
-
-    # verbose.message('info', f'load {config_file}')
-    # config = json.load(open(config_file))
-
     if ns.file_local:
         use = 'local'
     elif ns.file_global:
@@ -48,7 +35,11 @@ def app_main(ns: ConfigArgs):
     else:
         use = 'default'
 
-    config = load_config(cfile_stem, use)
+    if ns.from_template is not None:
+        verbose.message('info', f'copy from \'{ns.from_template}\'')
+        config = json.load(open(ns.from_template, 'r'))
+    else:
+        config = load_config(cfile_stem, use)
 
     try:
         obj_prev, obj_temp, k = decompose_keys(config, keys)

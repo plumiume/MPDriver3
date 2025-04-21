@@ -35,10 +35,13 @@ def runarg_config_type(x: str):
     k, v, *_ = x.split('=')
     return k, v
 
+def PathResoolved(x: str) -> Path:
+    return Path(x).resolve()
+
 class RunArgs(AppArgs):
     command = command
     'コマンド名'
-    src: Path = parser.add_argument('src', type=Path, help=HELP['apps.run.args:src'])
+    src: Path = parser.add_argument('src', type=PathResoolved, help=HELP['apps.run.args:src'])
     '入力 動画ファイルまたは連続画像ディレクトリ'
     class AnnotatedOptions(TypedDict):
         show: bool
@@ -51,7 +54,7 @@ class RunArgs(AppArgs):
     annotated: tuple[tuple[Path | None, str], AnnotatedOptions] = parser.add_argument(
         '--annotated', '-a',
         type=(_type:=(
-            (Path, None),
+            (PathResoolved, None),
             {
                 'show': Boolean,'overwrite': Boolean, 'fps': float,
                 'draw_lm': Boolean, 'draw_conn': Boolean, 'mask_face': Boolean,
@@ -98,16 +101,23 @@ class RunArgs(AppArgs):
         overwrite: bool
         normalize: bool
         clip: bool
+        flat: bool
         header: bool
     landmarks: tuple[tuple[Path | None, str], LandmarksOptions] = parser.add_argument(
         '--landmarks', '-l', action=NArgsAction, nargs='*',
         type=(_type:=(
-            (Path, None),
-            {'overwrite': Boolean, 'normalize': Boolean, 'clip': Boolean, 'header': Boolean}
+            (PathResoolved, None),
+            {
+                'overwrite': Boolean, 'normalize': Boolean,
+                'clip': Boolean, 'flat': Boolean, 'header': Boolean
+            }
         )),
         default=(_default:=(
             (None, '.csv'),
-            {'overwrite': False, 'normalize': True, 'clip': True, 'header': False}
+            {
+                'overwrite': False, 'normalize': True,
+                'clip': True, 'flat': True, 'header': False
+            }
         )),
         help=textwrap.dedent(f'''
             {HELP['apps.run.args:landmarks_options_title']}
@@ -124,6 +134,8 @@ class RunArgs(AppArgs):
                         type=_type[1]['normalize'], default=_default[1]['normalize'])}
                     clip        {HELP['apps.run.args:landmarks_options_clip'].format(
                         type=_type[1]['clip'], default=_default[1]['clip'])}
+                    flat        {HELP['apps.run.args:landmarks_options_flat'].format(
+                                    type=_type[1]['flat'], default=_default[1]['flat'])}
                     header      {HELP['apps.run.args:landmarks_options_header_0'].format(
                         type=_type[1]['header'], default=_default[1]['header'])}
                                 {HELP['apps.run.args:landmarks_options_header_1'].format(
@@ -139,8 +151,16 @@ class RunArgs(AppArgs):
         '--add-ext', type=str, action=argparse._AppendAction,
         help=HELP['apps.run.args:add_ext'], default=list()
     )
+    '入力動画ファイルの追加の拡張子'
+    template: Path | None = parser.add_argument(
+        '--template', type=PathResoolved, default=None,
+        choices=Path(__file__).resolve().parents[3].joinpath('templates').iterdir(),
+        help=HELP['apps.run.args:template']
+    )
+    'テンプレートファイルのパス'
     config: list[tuple[str, str]] = parser.add_argument(
         '--config', '-c', action=argparse._AppendAction,
         type=runarg_config_type,
         help=HELP['apps.run.args:config'], default=list()
     )
+    '追加の設定'

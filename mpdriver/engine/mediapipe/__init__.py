@@ -370,6 +370,13 @@ class MP:
         mp_dict: MediaPipeDict[NDArray[np.float32]],
         clip: bool = True
         ):
+        """
+        Normalize the coordinates of the landmarks to a range of 0 to 1.
+
+        Args:
+            mp_dict (MediaPipeDict[NDArray[np.float32]]): The dictionary of landmarks.
+            clip (bool): Whether to clip the coordinates to the range of 0 to 1.
+        """
 
         center = (mp_dict['pose'][Pose.LEFT_SHOULDER] + mp_dict['pose'][Pose.RIGHT_SHOULDER]) / 2
         width = abs(mp_dict['pose'][Pose.LEFT_SHOULDER][X] - mp_dict['pose'][Pose.RIGHT_SHOULDER][X])
@@ -395,14 +402,22 @@ class MP:
     def flatten(
         self,
         mp_dict: MediaPipeDict[NDArray[np.float32]],
+        as_3d: bool = False
         ):
 
         self.dims_cache = self.dims_cache or list(self.dimension_targets.values())
 
-        return np.concatenate([
-            mp_dict[target][indices][..., self.dims_cache]
-            for target, indices in self.landmark_indices.items()
-        ], axis=-2).reshape(-1)
+        if as_3d:
+            return np.concatenate([
+                mp_dict[target][indices][..., self.dims_cache]
+                for target, indices in self.landmark_indices.items()
+            ], axis=-2)
+
+        else:
+            return np.concatenate([
+                mp_dict[target][indices][..., self.dims_cache]
+                for target, indices in self.landmark_indices.items()
+            ], axis=-2).reshape(-1)
 
     def get_header(self, delimiter = ','):
 

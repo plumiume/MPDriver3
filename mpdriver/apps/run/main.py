@@ -41,9 +41,10 @@ os.environ['GLOG_minloglevel'] = '2'
 
 class RunApp(AppBase):
 
-    def __init__(self, config: list[tuple[str, str]] = []):
-
-        self.tmpdir = Path(tempfile.mkdtemp())
+    def __init__(
+        self,
+        config: list[tuple[str, str]] = []
+        ):
 
         # Apply additional configuration
         for ck, cv in config:
@@ -68,16 +69,42 @@ class RunApp(AppBase):
         landmarks: Path | None = None,
         show_annotated: bool = False,
         fps: float = 30,
-        draw_lm: bool = True,
-        draw_conn: bool = True,
-        mask_face: bool = False,
+        f_draw_lm: bool = True, 
+        f_draw_conn: bool = True, 
+        f_mask_face: bool = False, 
         fourcc: str | None = None,
-        normalize_clip: bool = True,
-        with_header: bool = False,
+        f_normalize: bool = True, 
+        f_clip: bool = True, 
+        f_flat: bool = True,
+        f_header: bool = False, 
         tqdm_kwds: TqdmKwargs = {},
         rlock: RLock | None = None,
         src_str_len: int | None = None
         ):
+        """
+        This method processes the input source (video or image sequence) to perform pose estimation
+        using MediaPipe. It can annotate the frames, save the results, and output landmarks in CSV
+        or NPY format. The method supports progress tracking and handles various configurations
+        for annotation and landmark extraction.
+
+        Args:
+                src (Path): The input source, either a video file or a directory containing images.
+                annotated (Path | None): The path to save the annotated output. If None, no annotation is saved.
+                landmarks (Path | None): The path to save the landmarks. If None, no landmarks are saved.
+                show_annotated (bool): Whether to display the annotated frames.
+                fps (float): Frames per second for the output video.
+                f_draw_lm (bool): Whether to draw landmarks on the frames.
+                f_draw_conn (bool): Whether to draw connections between landmarks.
+                f_mask_face (bool): Whether to mask the face in the annotation.
+                fourcc (str | None): FourCC code for video encoding. If None, default is used.
+                f_normalize (bool): Whether to normalize the landmarks.
+                f_clip (bool): Whether to clip the landmarks.
+                f_flat (bool): Whether to flatten the landmark matrix.
+                f_header (bool): Whether to include header in CSV output.
+                tqdm_kwds (TqdmKwargs): Additional arguments for tqdm progress bar.
+                rlock (RLock | None): A lock for thread safety when writing files.
+                src_str_len (int | None): Length of the source string for progress bar formatting.
+        """
 
         str_src = src.as_posix()
         imshow_winname = str(id(self))
@@ -126,33 +153,32 @@ class RunApp(AppBase):
         # np.Mat -> np.Mat, MPD (=MediaPipeDict)
         tasks = ((f, self.mp.detect(f)) for f in frame_iter) # 姿勢推定
 
-        if annotated is not None or show_annotated:
+        if annotated is not None or show_annotated: # 描画する場合
             # np.Mat, MPD -> MPD, np.Mat
-            tasks = ((mpd, self.mp.annotate(f, mpd, draw_conn, draw_lm, mask_face)) for f, mpd in tasks) # 関節点の描画
+            tasks = ((mpd, self.mp.annotate(f, mpd, f_draw_conn, f_draw_lm, f_mask_face)) for f, mpd in tasks) # 関節点の描画
 
             if show_annotated:
                 # MPD, np.Mat -> MPD, np.Mat
                 # （変化しない）
                 tasks = (((mpd, ann), cv2.imshow(imshow_winname, ann), cv2.waitKey(1))[0] for mpd, ann in tasks) # 描画したものを表示
 
-            if annotated is None:
+            if annotated is None: # 描画を保存しない
                 # Nothing to do
                 # MPD, np.Mat -> MPD
                 tasks = (mpd for mpd, ann in tasks)
 
-            if stem_ext and is_video(stem_ext):
+            elif stem_ext and is_video(stem_ext): # 描画を動画で保存する場合
                 tmp_video = (self.tmpdir / f'{hash(annotated)}.{annotated.suffix}').as_posix()
                 video_writer = VideoWriter(tmp_video, fourcc, fps, size) # 描画したものを保存（to動画）
                 # MPD, np.Mat -> MPD
                 tasks = ((mpd, video_writer.write(ann))[0] for mpd, ann in tasks)
                 def release_video():
                     video_writer.release()
-                    fi = open(tmp_video, 'rb')
-                    fo = open(annotated.as_posix(), 'wb')
-                    fo.write(fi.read())
+                    shutil.copy(tmp_video, annotated.as_posix())
+                    os.remove(tmp_video)
                 on_completed_tasks.append(release_video)
 
-            elif stem_ext and is_image(stem_ext):
+            elif stem_ext and is_image(stem_ext): # 描画を連続画像で保存する場合
                 # MPD, np.Mat -> MPD
                 tasks = (
                     (mpd, cv2.imwrite(
@@ -169,9 +195,21 @@ class RunApp(AppBase):
             # np.Mat, MPD -> MPD
             tasks = (mpd for f, mpd in tasks) # イテレータの整形
 
-        # MPD -> np.float
-        tasks = (self.mp.flatten(self.mp.normalize(mpd, clip=normalize_clip)) for mpd in tasks) # 3次元のフレームを１列に並べる
 
+        # normalize and clip
+        if f_normalize:
+            # MPD -> MPD
+            tasks = (self.mp.normalize(mpd, clip=f_clip) for mpd in tasks)
+
+        # flatten
+        if f_flat:
+            # MPD -> np.float
+            tasks = (self.mp.flatten(mpd) for mpd in tasks)
+        else:
+            # MPD -> np.float
+            tasks = (self.mp.flatten(mpd, as_3d=True) for mpd in tasks)
+
+        # 表示する文字幅を設定
         src_str_len = 70 if src_str_len is None else src_str_len
 
         tasks = tqdm_handler.tqdm(tasks, **({
@@ -187,8 +225,9 @@ class RunApp(AppBase):
             "unit": "f"
         } | tqdm_kwds)) # プログレスバー
 
-        if landmarks is None:
+        if landmarks is None: # 関節点の出力なし
             for _ in tasks: pass # 実行
+            tasks.update(total - tasks.last_print_n)
             del tasks
             return
 
@@ -196,6 +235,7 @@ class RunApp(AppBase):
         if not bool(matrix := list(tasks)):
             tqdm_handler.write(f'skip at {src} because it isn\'t detected from src')
             return
+        tasks.update(total - tasks.last_print_n)
         del tasks
 
         # Execute all on_completed_tasks
@@ -206,7 +246,10 @@ class RunApp(AppBase):
 
         if landmarks.suffix == ".csv": # CSVで出力
 
-            header = self.mp.get_header() if with_header else ""
+            header = self.mp.get_header() if f_header else ""
+
+            if matrix.ndim != 2:
+                raise ValueError(f"matrix.ndim != 2 ({matrix.ndim})")
 
             if rlock is not None: rlock.acquire()
             os.makedirs(landmarks.parent, exist_ok=True)
@@ -226,6 +269,11 @@ class RunExecutor(AppExecutor[RunApp]): # 子プロセス上の実行クラス
     app_type = RunApp # AppExecutor で使用するので，必ず app_type を設定
 
 def app_main(ns: RunArgs): # アプリケーションのコマンドラインツール用エントリーポイント
+
+    config = tuple(ns.config)
+
+    if ns.template is not None:
+        config
 
     executor = RunExecutor(ns.cpu, (ns.config,))
 
@@ -256,19 +304,29 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 # mediapipeの姿勢推定が必要ない状態
                 return
 
-            yield ((
-                ns.src,
-                annotated,
-                landmarks,
-                ns.annotated[1]["show"],
-                ns.annotated[1]["fps"],
-                ns.annotated[1]["draw_lm"],
-                ns.annotated[1]["draw_conn"],
-                ns.annotated[1]["mask_face"],
-                ns.annotated[1]["fourcc"],
-                ns.landmarks[1]["clip"],
-                ns.landmarks[1]["header"],
-            ), {})
+            yield (
+                (
+                    ns.src # src: Path,
+                ),
+                {
+                    'annotated': annotated,  # annotated: Path | None = None,
+                    'landmarks': landmarks,  # landmarks: Path | None = None,
+                    'show_annotated': ns.annotated[1]["show"],  # show_annotated: bool = False,
+                    'fps': ns.annotated[1]["fps"],  # fps: float = 30,
+                    'f_draw_lm': ns.annotated[1]["draw_lm"],  # f_draw_lm: bool = True,
+                    'f_draw_conn': ns.annotated[1]["draw_conn"],  # f_draw_conn: bool = True,
+                    'f_mask_face': ns.annotated[1]["mask_face"],  # f_mask_face: bool = False,
+                    'fourcc': ns.annotated[1]["fourcc"],  # fourcc: str | None = None,
+                    'f_normalize': ns.landmarks[1]["normalize"],  # f_normalize: bool = True,
+                    'f_clip': ns.landmarks[1]["clip"],  # f_clip: bool = True,
+                    'f_flat': ns.landmarks[1]["flat"],  # f_flat: bool = True,
+                    'f_header': ns.landmarks[1]["header"],  # f_header: bool = False,
+                    # tqdm_kwds: TqdmKwargs = {},
+                    # rlock: RLock | None = None,
+                    # src_str_len: int | None = None
+                }
+            
+            )
             return
 
         for src in video_or_imgdir_pathes(ns.src): # src がディレクトリ
@@ -293,19 +351,28 @@ def app_main(ns: RunArgs): # アプリケーションのコマンドラインツ
                 # mediapipeの姿勢推定が必要ない状態
                 continue
 
-            yield ((
-                ns.src / src_related,
-                annotated,
-                landmarks,
-                ns.annotated[1]["show"],
-                ns.annotated[1]["fps"],
-                ns.annotated[1]["draw_lm"],
-                ns.annotated[1]["draw_conn"],
-                ns.annotated[1]["mask_face"],
-                ns.annotated[1]["fourcc"],
-                ns.landmarks[1]["clip"],
-                ns.landmarks[1]["header"],
-            ), {})
+            yield (
+                (
+                    ns.src / src_related,  # src: Path,
+                ),
+                {
+                    'annotated': annotated,  # annotated: Path | None = None,
+                    'landmarks': landmarks,  # landmarks: Path | None = None,
+                    'show_annotated': ns.annotated[1]["show"],  # show_annotated: bool = False,
+                    'fps': ns.annotated[1]["fps"],  # fps: float = 30,
+                    'f_draw_lm': ns.annotated[1]["draw_lm"],  # f_draw_lm: bool = True,
+                    'f_draw_conn': ns.annotated[1]["draw_conn"],  # f_draw_conn: bool = True,
+                    'f_mask_face': ns.annotated[1]["mask_face"],  # f_mask_face: bool = False,
+                    'fourcc': ns.annotated[1]["fourcc"],  # fourcc: str | None = None,
+                    'f_normalize': ns.landmarks[1]["normalize"],  # f_normalize: bool = True,
+                    'f_clip': ns.landmarks[1]["clip"],  # f_clip: bool = True,
+                    'f_flat': ns.landmarks[1]["flat"],  # f_flat: bool = True,
+                    'f_header': ns.landmarks[1]["header"],  # f_header: bool = False,
+                    # tqdm_kwds: TqdmKwargs = {},
+                    # rlock: RLock | None = None,
+                    # src_str_len: int | None = None
+                }
+            )
 
     args_kwargs_list = list(executor._tqdm_func(
         args_kwargs_iter(),
